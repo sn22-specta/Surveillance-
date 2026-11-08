@@ -2,109 +2,451 @@
 <html lang="fr">
 <head>
 <meta charset="UTF-8">
-<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no">
-<title>Radar Mobile</title>
+<meta name="viewport" content="width=device-width, initial-scale=1.0, maximum-scale=1.0, user-scalable=no, viewport-fit=cover">
+<title>RADAR</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5/dist/tesseract.min.js"></script>
 <style>
-  * { box-sizing: border-box; margin: 0; padding: 0; }
-  body { background: #000; color: #fff; font-family: -apple-system, system-ui, sans-serif; overflow: hidden; }
-  
-  #container { position: fixed; inset: 0; display: flex; align-items: center; justify-content: center; background: #000; }
-  #wrapper { position: relative; max-width: 100%; max-height: 100%; }
-  #video { display: block; max-width: 100vw; max-height: 100vh; width: auto; height: auto; }
-  #overlay { position: absolute; top: 0; left: 0; width: 100%; height: 100%; }
-  
-  #ui {
-    position: absolute; top: 8px; left: 8px; right: 8px;
-    background: rgba(0,0,0,0.75); padding: 10px; border-radius: 10px;
-    font-size: 13px; backdrop-filter: blur(6px);
-  }
-  #ui .row { display: flex; justify-content: space-between; align-items: center; margin: 6px 0; gap: 6px; }
-  #speed { color: #ff0; font-size: 22px; font-weight: bold; font-variant-numeric: tabular-nums; }
-  #plate { color: #0ff; font-size: 16px; letter-spacing: 2px; }
-  button {
-    background: #06f; color: #fff; border: none; padding: 9px 14px;
-    border-radius: 8px; font-size: 14px; font-weight: 500; cursor: pointer;
-    -webkit-tap-highlight-color: transparent;
-  }
-  button:active { background: #048; transform: scale(0.96); }
-  input[type=number] { width: 55px; padding: 5px; border-radius: 6px; border: none; text-align: center; }
-  
-  #modal {
-    display: none; position: fixed; inset: 0; background: rgba(0,0,0,0.95);
-    z-index: 100; padding: 15px; flex-direction: column; align-items: center; justify-content: center;
-  }
-  #modal img { max-width: 100%; max-height: 55vh; border: 2px solid #0ff; border-radius: 8px; }
-  #ocrResult { color: #0ff; font-size: 18px; margin-top: 15px; text-align: center; word-break: break-all; line-height: 1.5; }
-  #ocrResult small { color: #888; font-size: 12px; }
+:root {
+  --bg: #0a0e17;
+  --panel: rgba(20, 27, 44, 0.78);
+  --panel-border: rgba(100, 150, 200, 0.16);
+  --text: #e2e8f0;
+  --text-muted: #64748b;
+  --cyan: #22d3ee;
+  --amber: #fbbf24;
+  --amber-glow: rgba(251, 191, 36, 0.45);
+  --red: #ef4444;
+  --green: #10b981;
+  --radius: 14px;
+}
+
+* { box-sizing: border-box; margin: 0; padding: 0; -webkit-tap-highlight-color: transparent; }
+html, body { height: 100%; overflow: hidden; }
+body {
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", system-ui, sans-serif;
+  background: radial-gradient(ellipse at top, #0f172a 0%, #0a0e17 60%, #05070c 100%);
+  color: var(--text);
+  display: flex; flex-direction: column;
+  user-select: none; -webkit-user-select: none;
+}
+
+/* ============ HEADER ============ */
+.header {
+  display: flex; align-items: center; justify-content: space-between;
+  padding: 12px 16px; padding-top: max(12px, env(safe-area-inset-top));
+  position: relative; z-index: 10;
+}
+.brand {
+  display: flex; align-items: center; gap: 9px;
+  font-weight: 800; font-size: 14px; letter-spacing: 3px;
+  color: var(--text);
+}
+.brand svg { color: var(--cyan); filter: drop-shadow(0 0 6px rgba(34,211,238,0.6)); }
+.live {
+  display: flex; align-items: center; gap: 7px;
+  font-size: 10px; font-weight: 700; color: var(--green);
+  text-transform: uppercase; letter-spacing: 2px;
+  padding: 5px 11px; border-radius: 20px;
+  background: rgba(16, 185, 129, 0.1);
+  border: 1px solid rgba(16, 185, 129, 0.35);
+}
+.live-dot {
+  width: 6px; height: 6px; border-radius: 50%; background: var(--green);
+  box-shadow: 0 0 8px var(--green);
+  animation: pulse 1.5s infinite;
+}
+@keyframes pulse { 0%,100% { opacity: 1; } 50% { opacity: 0.35; } }
+
+/* ============ STAGE VIDÉO ============ */
+.stage {
+  flex: 1; position: relative; overflow: hidden;
+  background: #000; display: flex;
+  align-items: center; justify-content: center;
+  min-height: 0;
+}
+#video {
+  display: block; max-width: 100%; max-height: 100%;
+  width: auto; height: auto;
+}
+#overlay { position: absolute; pointer-events: none; }
+
+/* ============ PANNEAU RÉSULTATS ============ */
+.results {
+  margin: 10px 12px 8px;
+  padding: 13px 16px;
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 8px 32px rgba(0,0,0,0.5), inset 0 1px 0 rgba(255,255,255,0.04);
+  display: grid; grid-template-columns: 1fr 1fr; gap: 16px;
+  position: relative; z-index: 5;
+}
+.results::before {
+  content: ''; position: absolute; top: 0; left: 20%; right: 20%; height: 1px;
+  background: linear-gradient(90deg, transparent, var(--cyan), transparent);
+  opacity: 0.5;
+}
+.metric { display: flex; flex-direction: column; gap: 7px; }
+.metric-label {
+  display: flex; align-items: center; gap: 6px;
+  font-size: 9px; font-weight: 700; text-transform: uppercase;
+  letter-spacing: 1.8px; color: var(--text-muted);
+}
+.metric-label svg { width: 13px; height: 13px; }
+
+.speed-display { display: flex; align-items: baseline; gap: 5px; }
+.speed-value {
+  font-family: "SF Mono", "Courier New", monospace;
+  font-size: 32px; font-weight: 800; line-height: 1;
+  color: var(--amber); font-variant-numeric: tabular-nums;
+  text-shadow: 0 0 22px var(--amber-glow);
+  letter-spacing: -1.5px;
+}
+.speed-unit { font-size: 10px; color: var(--text-muted); font-weight: 700; letter-spacing: 0.5px; }
+
+.speed-bar {
+  height: 3px; background: rgba(255,255,255,0.06); border-radius: 2px;
+  overflow: hidden;
+}
+.speed-bar-fill {
+  height: 100%; width: 0%; border-radius: 2px;
+  background: linear-gradient(90deg, var(--green), var(--amber), var(--red));
+  transition: width 0.4s cubic-bezier(0.2, 0.8, 0.2, 1);
+}
+
+/* plaque européenne */
+.plate-display {
+  display: flex; height: 34px;
+  border-radius: 5px; overflow: hidden;
+  box-shadow: inset 0 0 0 1px rgba(0,0,0,0.2), 0 2px 8px rgba(0,0,0,0.4);
+  background: linear-gradient(180deg, #fdfdfe, #d8dfe6);
+}
+.plate-strip {
+  width: 9px; flex-shrink: 0;
+  background: linear-gradient(180deg, #0055a4, #002e66);
+  position: relative;
+}
+.plate-strip::after {
+  content: 'EU'; position: absolute;
+  top: 50%; left: 50%; transform: translate(-50%, -50%) rotate(-90deg);
+  font-size: 5px; font-weight: 700; color: #fde047; letter-spacing: 1px;
+}
+.plate-text {
+  flex: 1; display: flex; align-items: center; justify-content: center;
+  padding: 0 8px;
+  font-family: "SF Mono", "Courier New", monospace;
+  font-weight: 800; font-size: 15px; letter-spacing: 2.5px;
+  color: #0a0e17; text-transform: uppercase;
+  overflow: hidden; white-space: nowrap; text-overflow: ellipsis;
+}
+
+/* ============ CONTRÔLES ============ */
+.controls {
+  display: grid; grid-template-columns: 1fr 1fr 1fr; gap: 8px;
+  padding: 0 12px 8px; position: relative; z-index: 5;
+}
+.btn {
+  display: flex; flex-direction: column; align-items: center; justify-content: center;
+  gap: 5px; padding: 10px 6px;
+  background: var(--panel); border: 1px solid var(--panel-border);
+  border-radius: 12px; color: var(--text);
+  font-size: 10px; font-weight: 700; letter-spacing: 0.5px;
+  text-transform: uppercase;
+  cursor: pointer; transition: all 0.15s ease;
+  backdrop-filter: blur(20px); -webkit-backdrop-filter: blur(20px);
+  box-shadow: 0 4px 16px rgba(0,0,0,0.3);
+}
+.btn svg { width: 20px; height: 20px; }
+.btn:active { transform: scale(0.94); background: rgba(34, 211, 238, 0.12); }
+.btn.primary {
+  background: linear-gradient(135deg, rgba(34,211,238,0.22), rgba(34,211,238,0.06));
+  border-color: rgba(34,211,238,0.45);
+  color: var(--cyan);
+  box-shadow: 0 4px 20px rgba(34,211,238,0.2);
+}
+.btn.primary:active { background: rgba(34, 211, 238, 0.32); }
+
+/* ============ CALIBRATION ============ */
+.calibration {
+  display: flex; align-items: center; gap: 8px;
+  padding: 0 14px 6px;
+  font-size: 11px; color: var(--text-muted);
+  position: relative; z-index: 5;
+  font-weight: 600; letter-spacing: 0.3px;
+}
+.calibration svg { width: 15px; height: 15px; color: var(--cyan); flex-shrink: 0; }
+.calibration input {
+  width: 52px; padding: 5px 6px;
+  background: rgba(255,255,255,0.05);
+  border: 1px solid var(--panel-border);
+  border-radius: 7px;
+  color: var(--amber); font-family: "SF Mono", monospace; font-size: 13px;
+  text-align: center; font-weight: 700;
+}
+.calibration input:focus { outline: none; border-color: var(--cyan); box-shadow: 0 0 0 2px rgba(34,211,238,0.2); }
+
+/* ============ STATUS ============ */
+.status {
+  padding: 4px 16px 12px;
+  padding-bottom: max(12px, env(safe-area-inset-bottom));
+  font-size: 11px; color: var(--text-muted);
+  display: flex; align-items: center; gap: 6px;
+  position: relative; z-index: 5;
+  font-weight: 500;
+}
+.status svg { width: 12px; height: 12px; flex-shrink: 0; opacity: 0.6; }
+
+/* ============ MODAL ============ */
+.modal {
+  display: none; position: fixed; inset: 0; z-index: 100;
+  background: rgba(5, 8, 14, 0.94);
+  backdrop-filter: blur(12px); -webkit-backdrop-filter: blur(12px);
+  flex-direction: column; align-items: center; justify-content: center;
+  padding: 20px;
+}
+.modal.open { display: flex; }
+.modal-card {
+  background: var(--panel);
+  border: 1px solid var(--panel-border);
+  border-radius: var(--radius);
+  padding: 16px;
+  max-width: 480px; width: 100%;
+  display: flex; flex-direction: column; gap: 14px;
+  box-shadow: 0 20px 60px rgba(0,0,0,0.7);
+  animation: modalIn 0.25s cubic-bezier(0.2, 0.9, 0.3, 1.2);
+}
+@keyframes modalIn { from { opacity: 0; transform: scale(0.92); } to { opacity: 1; transform: scale(1); } }
+.modal-header { display: flex; align-items: center; justify-content: space-between; }
+.modal-title {
+  display: flex; align-items: center; gap: 8px;
+  font-weight: 700; font-size: 12px; letter-spacing: 1px; text-transform: uppercase;
+}
+.modal-title svg { width: 17px; height: 17px; color: var(--cyan); }
+.close-btn {
+  width: 30px; height: 30px; border-radius: 8px; border: none;
+  background: rgba(255,255,255,0.06); color: var(--text-muted);
+  display: flex; align-items: center; justify-content: center;
+  cursor: pointer; transition: all 0.15s;
+}
+.close-btn:active { background: rgba(239,68,68,0.2); color: var(--red); }
+.close-btn svg { width: 15px; height: 15px; }
+.modal-img {
+  width: 100%; max-height: 42vh; object-fit: contain;
+  border-radius: 8px; background: #000;
+  border: 1px solid var(--panel-border);
+}
+.ocr-result {
+  padding: 12px; border-radius: 10px;
+  background: rgba(0,0,0,0.4);
+  border: 1px solid var(--panel-border);
+  font-family: "SF Mono", "Courier New", monospace;
+  text-align: center;
+  color: var(--cyan); font-size: 15px; font-weight: 800;
+  letter-spacing: 3px; text-transform: uppercase;
+  word-break: break-all;
+  min-height: 20px;
+  text-shadow: 0 0 12px rgba(34,211,238,0.5);
+}
+.ocr-meta {
+  font-size: 10px; color: var(--text-muted);
+  text-align: center; letter-spacing: 1.5px;
+  text-transform: uppercase; font-weight: 600;
+}
+.ocr-meta strong { color: var(--amber); }
+
+canvas#process { display: none; }
+
+/* ============ LANDSCAPE ============ */
+@media (orientation: landscape) and (max-height: 560px) {
+  .header { padding: 6px 12px; padding-top: max(6px, env(safe-area-inset-top)); }
+  .brand { font-size: 12px; letter-spacing: 2px; }
+  .brand svg { width: 16px; height: 16px; }
+  .results { margin: 6px 8px; padding: 8px 12px; gap: 12px; }
+  .speed-value { font-size: 24px; }
+  .plate-display { height: 28px; }
+  .plate-text { font-size: 13px; }
+  .controls { padding: 0 8px 6px; }
+  .btn { padding: 7px 4px; font-size: 9px; }
+  .btn svg { width: 16px; height: 16px; }
+  .calibration { padding: 0 12px 4px; font-size: 10px; }
+  .status { padding: 2px 14px 6px; font-size: 10px; }
+}
 </style>
 </head>
 <body>
-<div id="container">
-  <div id="wrapper">
-    <video id="video" autoplay playsinline muted></video>
-    <canvas id="overlay"></canvas>
+
+<!-- HEADER -->
+<header class="header">
+  <div class="brand">
+    <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="9"/>
+      <circle cx="12" cy="12" r="4"/>
+      <line x1="12" y1="3" x2="12" y2="6"/>
+      <line x1="12" y1="18" x2="12" y2="21"/>
+      <line x1="3" y1="12" x2="6" y2="12"/>
+      <line x1="18" y1="12" x2="21" y2="12"/>
+    </svg>
+    RADAR
+  </div>
+  <div class="live">
+    <span class="live-dot"></span>
+    Live
+  </div>
+</header>
+
+<!-- STAGE -->
+<main class="stage" id="stage">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="overlay"></canvas>
+</main>
+
+<!-- RÉSULTATS -->
+<section class="results">
+  <div class="metric">
+    <div class="metric-label">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <path d="M3 13l2-5h14l2 5v5h-2M3 18v-5"/>
+        <circle cx="7" cy="18" r="2"/>
+        <circle cx="17" cy="18" r="2"/>
+      </svg>
+      Vitesse
+    </div>
+    <div class="speed-display">
+      <span class="speed-value" id="speed">--</span>
+      <span class="speed-unit">km/h</span>
+    </div>
+    <div class="speed-bar"><div class="speed-bar-fill" id="speedBar"></div></div>
+  </div>
+  <div class="metric">
+    <div class="metric-label">
+      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+        <rect x="2" y="7" width="20" height="10" rx="1.5"/>
+        <path d="M6 10.5v3M9 10.5v3M12 10.5v3M15 10.5v3M18 10.5v3"/>
+      </svg>
+      Plaque
+    </div>
+    <div class="plate-display">
+      <div class="plate-strip"></div>
+      <div class="plate-text" id="plate">--</div>
+    </div>
+  </div>
+</section>
+
+<!-- CONTRÔLES -->
+<section class="controls">
+  <button class="btn primary" id="btnPlate">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M4 8h3l2-2h6l2 2h3a2 2 0 0 1 2 2v9a2 2 0 0 1-2 2H4a2 2 0 0 1-2-2v-9a2 2 0 0 1 2-2z"/>
+      <circle cx="12" cy="14" r="3.5"/>
+    </svg>
+    Capturer
+  </button>
+  <button class="btn" id="btnFlip">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <rect x="6" y="2" width="12" height="20" rx="2"/>
+      <path d="M9 9l2-1.5V10M15 15l-2 1.5V14"/>
+    </svg>
+    Retourner
+  </button>
+  <button class="btn" id="btnReset">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+      <path d="M3 12a9 9 0 1 1 3 6.7"/>
+      <path d="M3 4v6h6"/>
+    </svg>
+    Reset
+  </button>
+</section>
+
+<!-- CALIBRATION -->
+<div class="calibration">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+    <path d="M3 8h18v8H3z"/>
+    <path d="M7 8v3M11 8v4M15 8v3M19 8v4"/>
+  </svg>
+  <span>Lignes A–B</span>
+  <input type="number" id="calDist" value="10" min="0.5" step="0.5">
+  <span>m</span>
+</div>
+
+<!-- STATUS -->
+<div class="status">
+  <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round">
+    <circle cx="12" cy="12" r="9"/>
+    <path d="M12 8v4l2 2"/>
+  </svg>
+  <span id="statusText">Initialisation…</span>
+</div>
+
+<!-- MODAL OCR -->
+<div class="modal" id="modal">
+  <div class="modal-card">
+    <div class="modal-header">
+      <div class="modal-title">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="1.8" stroke-linecap="round" stroke-linejoin="round">
+          <rect x="2" y="7" width="20" height="10" rx="1.5"/>
+          <path d="M6 10.5v3M9 10.5v3M12 10.5v3M15 10.5v3M18 10.5v3"/>
+        </svg>
+        Lecture plaque
+      </div>
+      <button class="close-btn" id="btnClose">
+        <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2.5" stroke-linecap="round">
+          <path d="M6 6l12 12M18 6L6 18"/>
+        </svg>
+      </button>
+    </div>
+    <img id="plateImg" class="modal-img" alt="Capture">
+    <div class="ocr-result" id="ocrResult">Analyse…</div>
+    <div class="ocr-meta" id="ocrMeta"></div>
   </div>
 </div>
 
-<div id="ui">
-  <div class="row">
-    <span>🚗 <span id="speed">--</span> km/h</span>
-    <span>🪪 <span id="plate">--</span></span>
-  </div>
-  <div class="row">
-    <span>Distance lignes <input id="calDist" type="number" value="10" step="1"> m</span>
-    <button id="btnFlip">🔄</button>
-  </div>
-  <div class="row">
-    <button id="btnPlate" style="flex:1">📸 Capturer plaque</button>
-    <button id="btnReset">Reset</button>
-  </div>
-  <div class="row" style="font-size:11px; color:#aaa;">
-    <span id="status">Initialisation...</span>
-  </div>
-</div>
-
-<div id="modal">
-  <img id="plateImg" alt="Capture">
-  <div id="ocrResult">Analyse...</div>
-  <button id="btnClose" style="margin-top:20px; background:#333;">Fermer</button>
-</div>
-
-<canvas id="process" style="display:none"></canvas>
+<canvas id="process"></canvas>
 
 <script>
 (() => {
   'use strict';
   const $ = id => document.getElementById(id);
   const video = $('video'), overlay = $('overlay'), octx = overlay.getContext('2d');
+  const stage = $('stage');
   const procCanvas = $('process'), pctx = procCanvas.getContext('2d', { willReadFrequently: true });
-  
   const PW = 320, PH = 240;
   procCanvas.width = PW; procCanvas.height = PH;
-  
-  const LINE_A = 0.28;   // 28% de la largeur
-  const LINE_B = 0.72;   // 72% de la largeur
-  const TOLERANCE = 0.04; // 4% de la largeur
-  const MIN_MOTION_PX = 150;
+
+  const LINE_A = 0.28, LINE_B = 0.72;
+  const TOLERANCE = 0.05;
+  const MIN_MOTION_PX = 140;
   const SESSION_TIMEOUT = 12000;
-  
+  const MAX_SPEED_KMH = 150;
+
   let prevFrame = null;
   let session = null;
   let facing = 'environment';
   let loopTimer = null;
-  
-  function setStatus(msg) { $('status').textContent = msg; }
-  
-  function updateCanvasSize() {
-    if (!video.videoWidth) return;
-    if (overlay.width !== video.videoWidth || overlay.height !== video.videoHeight) {
-      overlay.width = video.videoWidth;
-      overlay.height = video.videoHeight;
+
+  function setStatus(msg, type = 'info') {
+    const el = $('statusText');
+    el.textContent = msg;
+    el.style.color = type === 'success' ? 'var(--green)'
+                    : type === 'error'   ? 'var(--red)'
+                    : 'var(--text-muted)';
+  }
+
+  function syncOverlaySize() {
+    const vr = video.getBoundingClientRect();
+    const sr = stage.getBoundingClientRect();
+    if (vr.width === 0 || vr.height === 0) return;
+    const w = Math.round(vr.width), h = Math.round(vr.height);
+    if (overlay.width !== w || overlay.height !== h) {
+      overlay.width = w; overlay.height = h;
       prevFrame = null;
     }
+    overlay.style.width  = w + 'px';
+    overlay.style.height = h + 'px';
+    overlay.style.left   = (vr.left - sr.left) + 'px';
+    overlay.style.top    = (vr.top  - sr.top)  + 'px';
   }
-  
+
   async function startCamera() {
     try {
       if (video.srcObject) video.srcObject.getTracks().forEach(t => t.stop());
@@ -114,55 +456,58 @@
       });
       video.srcObject = stream;
       video.onloadedmetadata = () => {
-        updateCanvasSize();
-        setStatus(`✅ Caméra ${video.videoWidth}×${video.videoHeight}`);
+        syncOverlaySize();
+        setStatus(`Caméra ${video.videoWidth}×${video.videoHeight}`, 'success');
         if (loopTimer) clearInterval(loopTimer);
         loopTimer = setInterval(processFrame, 100);
       };
     } catch (e) {
-      setStatus('❌ ' + e.message);
-      alert('Caméra inaccessible.\n\n' + e.message + 
-            '\n\n⚠️ Vérifiez que la page est servie en HTTPS.');
+      setStatus('Erreur caméra : ' + e.message, 'error');
+      alert('Caméra inaccessible.\n\n' + e.message + '\n\nLa page doit être servie en HTTPS.');
     }
   }
-  
+
   function processFrame() {
     if (video.readyState < 2 || !video.videoWidth) return;
-    updateCanvasSize();
-    
-    // Frame downscaled
+    syncOverlaySize();
+
+    // Capture downscaled pour analyse
     pctx.drawImage(video, 0, 0, PW, PH);
     const current = pctx.getImageData(0, 0, PW, PH);
-    
-    // Overlay : lignes de guidage
+
+    // --- Overlay ---
     octx.clearRect(0, 0, overlay.width, overlay.height);
-    const lineAx = overlay.width * LINE_A;
-    const lineBx = overlay.width * LINE_B;
-    octx.lineWidth = Math.max(2, overlay.width / 300);
-    octx.setLineDash([12, 8]);
-    octx.strokeStyle = session ? 'rgba(0,255,255,0.9)' : 'rgba(255,255,0,0.7)';
+    const W = overlay.width, H = overlay.height;
+    const lineAx = W * LINE_A, lineBx = W * LINE_B;
+
+    // Lignes de guidage
+    octx.lineWidth = Math.max(2, W / 280);
+    octx.setLineDash([10, 7]);
+    octx.strokeStyle = session ? 'rgba(34,211,238,0.95)' : 'rgba(251,191,36,0.7)';
+    octx.shadowBlur = 8;
+    octx.shadowColor = session ? 'rgba(34,211,238,0.8)' : 'rgba(251,191,36,0.5)';
     octx.beginPath();
-    octx.moveTo(lineAx, 0); octx.lineTo(lineAx, overlay.height);
-    octx.moveTo(lineBx, 0); octx.lineTo(lineBx, overlay.height);
+    octx.moveTo(lineAx, 0); octx.lineTo(lineAx, H);
+    octx.moveTo(lineBx, 0); octx.lineTo(lineBx, H);
     octx.stroke();
     octx.setLineDash([]);
-    
-    // Étiquettes
-    octx.fillStyle = 'rgba(255,255,0,0.9)';
-    octx.font = `bold ${Math.max(12, overlay.width/50)}px sans-serif`;
-    octx.fillText('A', lineAx + 6, 24);
-    octx.fillText('B', lineBx + 6, 24);
-    
+    octx.shadowBlur = 0;
+
+    // Étiquettes A / B
+    const fontSize = Math.max(12, W / 46);
+    octx.font = `700 ${fontSize}px "SF Mono", monospace`;
+    octx.fillStyle = 'rgba(251,191,36,0.95)';
+    octx.fillText('A', lineAx + 6, fontSize + 6);
+    octx.fillText('B', lineBx + 6, fontSize + 6);
+
     if (!prevFrame) { prevFrame = current; return; }
-    
-    // Différence de frames
+
+    // Différence inter-frames
     const data = current.data, prev = prevFrame.data;
     let sumX = 0, sumY = 0, count = 0;
-    
+
     for (let i = 0; i < data.length; i += 4) {
-      const d = Math.abs(data[i] - prev[i]) + 
-                Math.abs(data[i+1] - prev[i+1]) + 
-                Math.abs(data[i+2] - prev[i+2]);
+      const d = Math.abs(data[i] - prev[i]) + Math.abs(data[i+1] - prev[i+1]) + Math.abs(data[i+2] - prev[i+2]);
       if (d > 60) {
         const p = i >> 2;
         sumX += p % PW;
@@ -170,90 +515,102 @@
         count++;
       }
     }
-    
+
     if (count > MIN_MOTION_PX) {
-      const cx = (sumX / count / PW) * overlay.width;
-      const cy = (sumY / count / PH) * overlay.height;
-      
-      // Centroïde visuel
-      octx.fillStyle = '#ff2d55';
+      const cx = (sumX / count / PW) * W;
+      const cy = (sumY / count / PH) * H;
+
+      // Centroid animé
       octx.beginPath();
-      octx.arc(cx, cy, 10, 0, Math.PI * 2);
+      octx.arc(cx, cy, 14, 0, Math.PI * 2);
+      octx.fillStyle = 'rgba(255,45,85,0.25)';
+      octx.fill();
+      octx.beginPath();
+      octx.arc(cx, cy, 7, 0, Math.PI * 2);
+      octx.fillStyle = '#ff2d55';
       octx.fill();
       octx.strokeStyle = '#fff';
       octx.lineWidth = 2;
       octx.stroke();
-      
-      // Gestion de la session
-      const tol = overlay.width * TOLERANCE;
-      
+
+      const tol = W * TOLERANCE;
+
       if (!session) {
-        session = { t0: null, tB: null, crossedA: false, crossedB: false, startTime: performance.now() };
+        session = { t0: null, crossedA: false, crossedB: false, startTime: performance.now() };
       }
-      
+
       if (!session.crossedA && Math.abs(cx - lineAx) < tol) {
         session.crossedA = true;
         session.t0 = performance.now();
-        setStatus('📏 Ligne A franchie...');
+        setStatus('Ligne A franchie…');
       }
-      
+
       if (session.crossedA && !session.crossedB && Math.abs(cx - lineBx) < tol) {
         session.crossedB = true;
-        session.tB = performance.now();
-        const dt = (session.tB - session.t0) / 1000;
+        const dt = (performance.now() - session.t0) / 1000;
         const dist = parseFloat($('calDist').value) || 10;
         if (dt > 0.05) {
           const kmh = (dist / dt) * 3.6;
           $('speed').textContent = kmh.toFixed(1);
-          setStatus(`✅ ${dt.toFixed(2)}s → ${kmh.toFixed(1)} km/h`);
+          $('speedBar').style.width = Math.min(100, (kmh / MAX_SPEED_KMH) * 100) + '%';
+          setStatus(`${dt.toFixed(2)}s de traversée → ${kmh.toFixed(1)} km/h`, 'success');
         }
         setTimeout(() => { session = null; }, 2000);
       }
-      
-      // Timeout
+
       if (session && performance.now() - session.startTime > SESSION_TIMEOUT) {
         session = null;
-        setStatus('⏱️ Session expirée');
+        setStatus('Session expirée');
       }
-      
     } else if (session && performance.now() - session.startTime > SESSION_TIMEOUT) {
       session = null;
-      setStatus('⏱️ Session expirée');
+      setStatus('Session expirée');
     }
-    
+
     prevFrame = current;
   }
-  
+
+  function extractPlate(text) {
+    const cleaned = text.toUpperCase().replace(/[^A-Z0-9]/g, '');
+    let m = cleaned.match(/[A-Z]{2}\d{3}[A-Z]{2}/);
+    if (m) return m[0];
+    m = cleaned.match(/\d{2,4}[A-Z]{2}\d{2}/);
+    if (m) return m[0];
+    return cleaned.slice(0, 12);
+  }
+
   async function capturePlate() {
     if (!video.videoWidth) return;
-    const modal = $('modal'), img = $('plateImg'), result = $('ocrResult');
-    
+    const modal = $('modal'), img = $('plateImg'), result = $('ocrResult'), meta = $('ocrMeta');
+
     const snap = document.createElement('canvas');
     snap.width = video.videoWidth;
     snap.height = video.videoHeight;
     snap.getContext('2d').drawImage(video, 0, 0);
-    img.src = snap.toDataURL('image/jpeg', 0.9);
-    
-    modal.style.display = 'flex';
-    result.textContent = '⏳ Chargement OCR (peut prendre 10-30s la 1ère fois)...';
-    
+    img.src = snap.toDataURL('image/jpeg', 0.92);
+
+    modal.classList.add('open');
+    result.textContent = 'Analyse…';
+    meta.textContent = '';
+
     try {
       const { data } = await Tesseract.recognize(snap, 'fra', {
         logger: m => {
           if (m.status === 'recognizing text') {
-            result.textContent = `🔍 OCR ${(m.progress * 100).toFixed(0)}%`;
+            result.textContent = `OCR ${(m.progress * 100).toFixed(0)}%`;
           }
         }
       });
-      const cleaned = data.text.replace(/[^A-Z0-9\-\s]/gi, ' ').replace(/\s+/g, ' ').trim();
-      result.innerHTML = `📄 <strong>${cleaned || '(aucun texte détecté)'}</strong><br>
-        <small>Confiance: ${(data.confidence || 0).toFixed(0)}%</small>`;
-      if (cleaned.length >= 3) $('plate').textContent = cleaned.substring(0, 14);
+      const plate = extractPlate(data.text);
+      result.textContent = plate || '—';
+      meta.innerHTML = `Confiance : <strong>${(data.confidence || 0).toFixed(0)}%</strong>`;
+      if (plate.length >= 3) $('plate').textContent = plate;
     } catch (e) {
-      result.textContent = '❌ Erreur OCR : ' + e.message;
+      result.textContent = 'Erreur';
+      meta.textContent = e.message;
     }
   }
-  
+
   // Événements
   $('btnFlip').onclick = () => {
     facing = facing === 'environment' ? 'user' : 'environment';
@@ -261,18 +618,18 @@
     startCamera();
   };
   $('btnPlate').onclick = capturePlate;
-  $('btnClose').onclick = () => { $('modal').style.display = 'none'; };
+  $('btnClose').onclick = () => $('modal').classList.remove('open');
   $('btnReset').onclick = () => {
     session = null; prevFrame = null;
     $('speed').textContent = '--';
-    setStatus('🔄 Réinitialisé');
+    $('speedBar').style.width = '0%';
+    setStatus('Réinitialisé');
   };
-  window.addEventListener('resize', updateCanvasSize);
-  window.addEventListener('orientationchange', () => setTimeout(updateCanvasSize, 400));
-  
-  // Démarrage
+  window.addEventListener('resize', syncOverlaySize);
+  window.addEventListener('orientationchange', () => setTimeout(syncOverlaySize, 400));
+
   startCamera();
 })();
 </script>
 </body>
-                                                                          </html>
+     </html>
