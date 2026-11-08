@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>RADAR PRO</title>
+<title>RADAR PRO v2</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
 <style>
 :root{--bg:#080c14;--pn:#111a2b;--bd:#22314d;--tx:#e5ecf6;--mu:#7a8aa6;--cy:#2ee6d6;--am:#ffb020;--rd:#ff4d5e;--gn:#34d399}
@@ -80,17 +80,14 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 @keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 .ph{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:15px}
 .x{background:none;border:1px solid var(--bd);color:var(--mu);border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer}
-.x:active{background:rgba(255,77,94,.2);color:var(--rd)}
 .row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:13px}
 .row output{color:var(--am);font-size:13px;font-weight:700}
 .row input[type=range]{grid-column:1/3;width:100%}
 .row small{grid-column:1/3;color:var(--mu);font-size:11px}
 .grp{font-size:11px;color:var(--cy);font-weight:700;margin-top:6px;text-transform:uppercase;letter-spacing:1px}
 
-/* Range & Checkbox custom */
 input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--bg);border-radius:2px;outline:none;margin:6px 0}
 input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;background:var(--cy);border-radius:50%;cursor:pointer;box-shadow:0 0 0 3px rgba(46,230,214,.2),0 2px 6px rgba(0,0,0,.4)}
-input[type=range]::-moz-range-thumb{width:18px;height:18px;background:var(--cy);border-radius:50%;border:none;cursor:pointer;box-shadow:0 0 0 3px rgba(46,230,214,.2)}
 input[type=checkbox]{-webkit-appearance:none;appearance:none;width:44px;height:24px;background:var(--bg);border-radius:12px;position:relative;cursor:pointer;border:1px solid var(--bd);transition:all .2s;flex-shrink:0}
 input[type=checkbox]::before{content:'';position:absolute;width:18px;height:18px;background:var(--mu);border-radius:50%;top:2px;left:2px;transition:all .2s}
 input[type=checkbox]:checked{background:var(--cy);border-color:var(--cy)}
@@ -98,24 +95,14 @@ input[type=checkbox]:checked::before{left:22px;background:#fff}
 select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-radius:8px;padding:6px;font-size:13px}
 .sw{display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
-
-/* MODAL PLAQUE */
 .pimg{width:100%;max-height:30vh;object-fit:contain;background:#000;border-radius:8px;border:1px solid var(--bd)}
-.big{text-align:center;font:800 26px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--cy);padding:12px;background:var(--bg);border-radius:10px;word-break:break-all;outline:none;border:1px solid transparent;transition:border-color .15s}
+.big{text-align:center;font:800 26px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--cy);padding:12px;background:var(--bg);border-radius:10px;word-break:break-all;outline:none;border:1px solid transparent}
 .big:focus{border-color:var(--cy);background:#0d1524}
-.big:empty::before{content:'—';color:var(--mu)}
 .edit-hint{font-size:10px;color:var(--mu);text-align:center;margin-top:-6px;font-style:italic}
 
-/* TUTORIEL */
-.tut-list{padding-left:20px;font-size:13px;line-height:1.7;color:var(--tx)}
-.tut-list li{margin-bottom:6px}
-.tut-list code{background:var(--bg);padding:1px 6px;border-radius:4px;font-size:12px;color:var(--cy)}
-a.btn{text-decoration:none}
-
 @media(orientation:landscape) and (max-height:560px){
-  .dash{padding:6px 10px;margin:6px 10px}.btn{padding:6px 2px}
-  .btn svg{display:none}.gauge{width:110px;height:64px}
-  #spd{font-size:26px}.plate{height:32px}.plate b{font-size:16px}
+  .dash{padding:6px 10px;margin:6px 10px}.btn{padding:6px 2px}.btn svg{display:none}
+  .gauge{width:110px;height:64px}#spd{font-size:26px}.plate{height:32px}.plate b{font-size:16px}
   .stats{padding:0 8px 6px}.stat b{font-size:12px}
 }
 </style>
@@ -181,22 +168,9 @@ a.btn{text-decoration:none}
   <img id="plFull" class="pimg" alt="Capture">
   <img id="plCrop" class="pimg" alt="Zone plaque" style="max-height:90px">
   <div class="big" id="plTxt" contenteditable="true" spellcheck="false"></div>
-  <div class="edit-hint">Touchez le texte pour le corriger manuellement</div>
+  <div class="edit-hint">Touchez le texte pour le corriger</div>
   <div class="meta" id="plMeta"></div>
   <div class="two"><button class="btn" id="bRe">Relire</button><a class="btn" id="bDl" download="capture.jpg">Télécharger</a></div>
-</div></div>
-
-<!-- TUTORIEL -->
-<div class="sheet" id="shTut"><div class="panel">
-  <div class="ph">Bienvenue sur RADAR PRO</div>
-  <ol class="tut-list">
-    <li>Posez le téléphone <strong>stable</strong>, perpendiculaire à la route.</li>
-    <li>Mesurez au sol la <strong>distance réelle</strong> entre les lignes A et B.</li>
-    <li>Entrez-la dans <code>Réglages → Distance</code>.</li>
-    <li>Cadrez la <strong>zone plaque</strong> (rectangle vert) sur les plaques au passage.</li>
-    <li>Les vitesses s'affichent dès qu'un véhicule traverse A puis B.</li>
-  </ol>
-  <button class="btn main" id="bTutOk" style="margin-top:8px">C'est parti</button>
 </div></div>
 
 <script>
@@ -222,8 +196,8 @@ const F=[
  ['px','Position X','%',0,95,1],['py','Position Y','%',0,95,1],['pw','Largeur','%',5,100,1],['ph','Hauteur','%',3,100,1,'Cadrez la plaque au moment où le véhicule franchit B']
 ];
 let S={...D};
-try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v3')||'{}'))}catch(e){}
-const save=()=>{try{localStorage.setItem('radar.v3',JSON.stringify(S))}catch(e){}};
+try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v4')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('radar.v4',JSON.stringify(S))}catch(e){}};
 
 function buildFields(){
   const box=$('fields');box.innerHTML='';
@@ -280,7 +254,7 @@ function updateStats(){
   $('stOver').textContent=stats.over;
 }
 
-/* ---------- Caméra ---------- */
+/* ---------- Caméra (Optimisée mobile) ---------- */
 let facing='environment',bg=null,last=null,ses=null,mark=null,trail=[],frames=0,fpsT=performance.now();
 function sync(){
   const v=video.getBoundingClientRect(),s=stage.getBoundingClientRect();
@@ -292,23 +266,28 @@ function sync(){
 async function startCam(){
   try{
     if(video.srcObject)video.srcObject.getTracks().forEach(t=>t.stop());
-    video.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:1920},height:{ideal:1080},frameRate:{ideal:60}},audio:false});
+    // RÉSOLUTION RÉDUITE POUR LA FLUIDITÉ
+    video.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}},audio:false});
     await video.play().catch(()=>{});
     bg=null;last=null;ses=null;trail=[];
-    status(`Caméra ${video.videoWidth}×${video.videoHeight} prête`,'ok');
+    status(`Caméra prête`,'ok');
   }catch(e){status('Caméra inaccessible : '+e.message+' (HTTPS requis)','err')}
 }
 const sched=()=>video.requestVideoFrameCallback?video.requestVideoFrameCallback(tick):requestAnimationFrame(tick);
 function tick(now){try{process(now)}catch(e){console.error(e)}sched()}
 
-/* ---------- Détection ---------- */
+/* ---------- Détection & Anti faux-positifs ---------- */
 function process(t){
   if(video.readyState<2||!video.videoWidth)return;
   sync();
   if(++frames>=30){$('fps').textContent=Math.round(frames*1000/(t-fpsT))+' fps';frames=0;fpsT=t}
   pc.drawImage(video,0,0,PW,PH);
   const d=pc.getImageData(0,0,PW,PH).data,n=PW*PH;
-  if(!bg||bg.length!==n){bg=new Float32Array(n);for(let i=0;i<n;i++)bg[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;last=null;draw();return}
+  if(!bg||bg.length!==n){
+    bg=new Float32Array(n);
+    for(let i=0;i<n;i++)bg[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
+    last=null;draw();return;
+  }
   const y0=Math.floor(S.top/100*PH),y1=Math.max(y0+1,Math.ceil(S.bot/100*PH));
   let c=0,sx=0,sy=0;
   for(let y=0;y<PH;y++)for(let x=0;x<PW;x++){
@@ -318,10 +297,24 @@ function process(t){
   }
   if(c>.6*PW*(y1-y0)){bg=null;last=null;mark=null;trail=[];draw();return}
   mark=null;
+  
   if(c>=S.area){
     const x=sx/c/PW,y=sy/c/PH;mark={x,y};
     trail.push({x,y,t});while(trail.length&&t-trail[0].t>1500)trail.shift();
+    
     if(last&&t-last.t<400){
+      // --- FILTRE ANTI MOUVEMENT AVANT/ARRIERE ---
+      // On vérifie que le mouvement est majoritairement horizontal (X) et pas vertical (Y)
+      const dx = Math.abs(x - last.x);
+      const dy = Math.abs(y - last.y);
+      
+      // Si le mouvement vertical est trop grand par rapport à l'horizontal, on ignore
+      // Ça empêche de valider si on approche la main de la caméra
+      if (dy > 0.08 && dy > dx * 1.5) {
+        last = {x, t};
+        return draw(); 
+      }
+
       const cr=[];
       [['A',S.a/100],['B',S.b/100]].forEach(([k,L])=>{
         if((last.x-L)*(x-L)<0)cr.push({k,tc:last.t+(L-last.x)/(x-last.x)*(t-last.t),dir:Math.sign(x-last.x)});
@@ -347,12 +340,11 @@ function finish(kmh,dt,dir){
   const mx=Math.max(120,S.limit*1.5);
   $('arc').setAttribute('stroke-dasharray',`${Math.min(1,kmh/mx)*169.6} 170`);
   $('dt').textContent=`Temps : ${dt.toFixed(2)} s`;
-  $('dir').textContent=dir>0?'Sens : →':'Sens : ←';
+  $('dir').textContent=dir>0?'Sens : → (G à D)':'Sens : ← (D à G)';
   const over=S.limit>0&&kmh>S.limit;
   $('dash').classList.toggle('over',over);
   status(`${fmt(v)} mesurés`,over?'err':'ok');
-  if(over){beep(440,.1,.2);setTimeout(()=>beep(440,.1,.2),150)}
-  else beep(880,.06,.12);
+  if(over){beep(440,.1,.2);setTimeout(()=>beep(440,.1,.2),150)} else beep(880,.06,.12);
   if(navigator.vibrate)navigator.vibrate(over?[120,60,120]:40);
   addStat(kmh,over);
   const e=snap(kmh,over);addHist(e);
@@ -364,10 +356,8 @@ function draw(){
   const W=ov.width,H=ov.height;oc.clearRect(0,0,W,H);
   const ax=S.a/100*W,bx=S.b/100*W,yt=S.top/100*H,yb=S.bot/100*H;
 
-  // Masque bandes hors détection
   oc.fillStyle='rgba(0,0,0,.4)';oc.fillRect(0,0,W,yt);oc.fillRect(0,yb,W,H-yb);
 
-  // Coins HUD
   const bl=22,bo=10;oc.strokeStyle='rgba(46,230,214,.65)';oc.lineWidth=2;oc.lineCap='round';
   oc.beginPath();
   oc.moveTo(bo+bl,bo);oc.lineTo(bo,bo);oc.lineTo(bo,bo+bl);
@@ -376,18 +366,15 @@ function draw(){
   oc.moveTo(W-bo,H-bo-bl);oc.lineTo(W-bo,H-bo);oc.lineTo(W-bo-bl,H-bo);
   oc.stroke();
 
-  // Lignes A / B
   oc.lineWidth=Math.max(2,W/300);oc.setLineDash([10,7]);
   oc.strokeStyle=ses?'#2ee6d6':'rgba(255,176,32,.85)';
   oc.shadowBlur=6;oc.shadowColor=ses?'rgba(46,230,214,.7)':'rgba(255,176,32,.5)';
   oc.beginPath();oc.moveTo(ax,yt);oc.lineTo(ax,yb);oc.moveTo(bx,yt);oc.lineTo(bx,yb);oc.stroke();
   oc.setLineDash([]);oc.shadowBlur=0;
 
-  // Étiquettes
   const fs=Math.max(12,W/40);oc.font=`700 ${fs}px ui-monospace,monospace`;oc.fillStyle='#ffb020';
   oc.fillText('A',ax+6,yt+fs+4);oc.fillText('B',bx+6,yt+fs+4);
 
-  // Zone plaque
   if(S.zone){
     const zx=S.px/100*W,zy=S.py/100*H,zw=S.pw/100*W,zh=S.ph/100*H;
     oc.strokeStyle='rgba(52,211,153,.9)';oc.lineWidth=2;oc.setLineDash([5,4]);
@@ -397,7 +384,6 @@ function draw(){
     oc.fillText('PLAQUE',zx+4,zy-4);
   }
 
-  // Trajectoire
   if(trail.length>1){
     for(let i=1;i<trail.length;i++){
       const a=trail[i-1],b=trail[i],alpha=i/trail.length;
@@ -407,7 +393,6 @@ function draw(){
     }
   }
 
-  // Centroïde
   if(mark){
     oc.beginPath();oc.arc(mark.x*W,mark.y*H,12,0,7);
     oc.fillStyle='rgba(255,77,94,.2)';oc.fill();
@@ -491,23 +476,13 @@ async function runOcr(e){
     const w=await getWorker();
     let best={plate:'',score:-1,conf:0},pp=null;
 
-    // Passe 1 : seuillage Otsu (psm 7 = ligne unique)
     await w.setParameters({tessedit_pageseg_mode:'7'});
     pp=prep(cv,0);e.crop=pp.toDataURL('image/png');
     let {data}=await w.recognize(pp);let r=parsePlate(data.text);r.conf=data.confidence||0;
     if(r.score>best.score)best=r;
 
-    // Passe 2 : contraste renforcé
     if(best.score<2){
       pp=prep(cv,1);
-      ({data}=await w.recognize(pp));r=parsePlate(data.text);r.conf=data.confidence||0;
-      if(r.score>best.score)best=r;
-    }
-
-    // Passe 3 : bloc uniforme (psm 6) en secours
-    if(best.score<2){
-      await w.setParameters({tessedit_pageseg_mode:'6'});
-      pp=prep(cv,0);
       ({data}=await w.recognize(pp));r=parsePlate(data.text);r.conf=data.confidence||0;
       if(r.score>best.score)best=r;
     }
@@ -537,9 +512,6 @@ $('plTxt').addEventListener('blur',()=>{
     status(`Plaque corrigée : ${v}`,'ok');
   }
 });
-$('plTxt').addEventListener('keydown',e=>{
-  if(e.key==='Enter'){e.preventDefault();$('plTxt').blur()}
-});
 
 /* ---------- Actions ---------- */
 $('bFlip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCam()};
@@ -551,14 +523,6 @@ $('bReset').onclick=()=>{
   $('dash').classList.remove('over');
   status('Réinitialisé');
 };
-$('bCsv').onclick=()=>{
-  const rows=['heure;vitesse_kmh;plaque;confiance'].concat(hist.map(e=>[e.time.toISOString(),e.kmh==null?'':e.kmh.toFixed(1),e.plate,Math.round(e.conf)].join(';')));
-  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));a.download='radar.csv';a.click();
-};
-
-/* ---------- Tutoriel ---------- */
-if(!localStorage.getItem('radar.tut'))$('shTut').classList.add('open');
-$('bTutOk').onclick=()=>{localStorage.setItem('radar.tut','1');$('shTut').classList.remove('open');ensureAudio()};
 
 /* ---------- Boot ---------- */
 addEventListener('resize',sync);
@@ -568,4 +532,4 @@ startCam().then(sched);
 })();
 </script>
 </body>
-  </html>
+    </html>
