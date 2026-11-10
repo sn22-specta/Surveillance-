@@ -71,7 +71,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 .card span{font-size:10px;color:var(--mu);letter-spacing:.5px}
 
 #st{padding:2px 14px max(10px,env(safe-area-inset-bottom));font-size:11px;color:var(--mu);font-weight:500;text-align:center;line-height:1.4}
-#diag{font-size:10px;color:#4a5a75;font-family:ui-monospace,monospace;padding:0 14px 6px;text-align:center}
+#diag{font-size:10px;color:#4a5a75;font-family:ui-monospace,monospace;padding:0 14px 6px;text-align:center;line-height:1.4}
 
 .sheet{position:fixed;inset:0;z-index:50;background:rgba(4,7,12,.86);backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center}
 .sheet.open{display:flex}
@@ -98,6 +98,8 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 .big{text-align:center;font:800 26px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--cy);padding:12px;background:var(--bg);border-radius:10px;word-break:break-all;outline:none;border:1px solid transparent}
 .big:focus{border-color:var(--cy);background:#0d1524}
 .edit-hint{font-size:10px;color:var(--mu);text-align:center;margin-top:-6px;font-style:italic}
+.recal{background:rgba(46,230,214,.15);border:1px solid var(--cy);color:var(--cy);padding:11px;border-radius:10px;font-weight:700;font-size:13px;cursor:pointer}
+.recal:active{background:rgba(46,230,214,.3)}
 
 @media(orientation:landscape) and (max-height:560px){
   .dash{padding:6px 10px;margin:6px 10px}.btn{padding:6px 2px}.btn svg{display:none}
@@ -164,6 +166,7 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 <div class="sheet" id="shSet"><div class="panel">
   <div class="ph">Réglages<button class="x" data-close>✕</button></div>
   <div id="fields" style="display:flex;flex-direction:column;gap:12px"></div>
+  <button class="recal" id="bRecal">🔄 Recalibrer le fond (positionner le téléphone puis cliquer)</button>
   <div class="sw">Unité<select id="unitSel"><option value="kmh">km/h</option><option value="mph">mph</option></select></div>
   <div class="sw">Lecture auto de la plaque<input type="checkbox" id="autoOcr"></div>
   <div class="sw">Afficher la zone plaque<input type="checkbox" id="showZone"></div>
@@ -187,29 +190,29 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 const $=id=>document.getElementById(id);
 const video=$('video'),ov=$('ov'),oc=ov.getContext('2d'),stage=$('stage');
 
-/* ✅ RÉSOLUTION RÉDUITE : 160x90 au lieu de 320x180 → 4x moins de bruit */
 const PW=160,PH=90;
 const pcv=document.createElement('canvas');pcv.width=PW;pcv.height=PH;
 const pc=pcv.getContext('2d',{willReadFrequently:true});
 
 /* ---------- Réglages ---------- */
-const D={dist:1,a:28,b:72,top:15,bot:95,sens:28,area:25,entryTol:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
+const D={dist:1,a:28,b:72,top:15,bot:95,sens:22,area:25,entryTol:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true,noiseK:3.0};
 const F=[
  ['Mesure'],
  ['dist','Distance réelle entre A et B','m',.1,100,.1,'Calibrage : distance réelle au sol'],
  ['a','Position ligne A','%',5,95,1],['b','Position ligne B','%',5,95,1],
- ['entryTol','Zone d\'entrée','%',3,25,1,'Élargissez si l\'objet n\'est pas détecté'],
+ ['entryTol','Zone d\'entrée','%',3,25,1],
  ['limit','Limite de vitesse (0 = aucune)','km/h',0,200,5],
  ['Détection'],
  ['top','Bande de détection : haut','%',0,90,1],['bot','Bande de détection : bas','%',10,100,1],
- ['sens','Seuil de mouvement','',5,120,1,'Plus bas = plus sensible'],
- ['area','Taille mini du blob','px',10,400,5,'Augmentez si trop de points de bruit'],
+ ['sens','Seuil de mouvement (min)','',5,120,1,'Plus bas = plus sensible'],
+ ['noiseK','Sensibilité au bruit (× σ)','σ',1,5,.5,'Augmentez si du bruit passe encore'],
+ ['area','Taille mini du blob','px',10,400,5],
  ['Zone plaque'],
  ['px','Position X','%',0,95,1],['py','Position Y','%',0,95,1],['pw','Largeur','%',5,100,1],['ph','Hauteur','%',3,100,1]
 ];
 let S={...D};
-try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v9')||'{}'))}catch(e){}
-const save=()=>{try{localStorage.setItem('radar.v9',JSON.stringify(S))}catch(e){}};
+try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v10')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('radar.v10',JSON.stringify(S))}catch(e){}};
 
 function buildFields(){
   const box=$('fields');box.innerHTML='';
@@ -229,9 +232,16 @@ $('soundOn').onchange=e=>{S.sound=e.target.checked;save();if(e.target.checked)en
 $('bDef').onclick=()=>{S={...D};save();buildFields();$('unit').textContent='km/h'};
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('open'));
 $('bSet').onclick=()=>{$('shSet').classList.add('open');ensureAudio()};
+$('bRecal').onclick=()=>{
+  /* ✅ Recalibrage manuel du fond */
+  bgMean=null;bgVar=null;heatBuf=null;warmupFrames=0;
+  resetTracker();
+  status('Fond recalibré — attendez 2 s','ok');
+  $('shSet').classList.remove('open');
+};
 
 const status=(m,c)=>{const e=$('st');e.textContent=m;e.style.color=c==='ok'?'var(--gn)':c==='err'?'var(--rd)':c==='track'?'var(--gn)':'var(--mu)'};
-const diag=(m)=>{$('diag').textContent=m};
+const diag=(m)=>{$('diag').innerHTML=m};
 const conv=k=>S.unit==='mph'?k*0.621371:k;
 const fmt=v=>`${v.toFixed(1)} ${S.unit==='mph'?'mph':'km/h'}`;
 
@@ -268,12 +278,12 @@ function updateStats(){
 }
 
 /* ---------- Caméra ---------- */
-let facing='environment',bg=null,frames=0,fpsT=performance.now(),flashT=0,currentFps=0,lastState='idle';
+let facing='environment',frames=0,fpsT=performance.now(),flashT=0,currentFps=0,lastState='idle';
 function sync(){
   const v=video.getBoundingClientRect(),s=stage.getBoundingClientRect();
   if(!v.width)return;
   const w=Math.round(v.width),h=Math.round(v.height);
-  if(ov.width!==w||ov.height!==h){ov.width=w;ov.height=h;bg=null}
+  if(ov.width!==w||ov.height!==h){ov.width=w;ov.height=h}
   ov.style.cssText=`width:${w}px;height:${h}px;left:${v.left-s.left}px;top:${v.top-s.top}px`;
 }
 function showCamError(msg){$('camErrMsg').textContent=msg;$('camError').classList.add('show')}
@@ -281,23 +291,21 @@ function hideCamError(){$('camError').classList.remove('show')}
 async function startCam(){
   try{
     if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
-      showCamError('getUserMedia indisponible. Utilisez Chrome/Firefox récent en HTTPS.');
-      return;
+      showCamError('getUserMedia indisponible. Utilisez Chrome/Firefox récent en HTTPS.');return;
     }
     if(video.srcObject)video.srcObject.getTracks().forEach(t=>t.stop());
     video.srcObject=await navigator.mediaDevices.getUserMedia({
       video:{facingMode:facing,width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}},audio:false
     });
     await video.play().catch(()=>{});
-    hideCamError();bg=null;resetTracker();
-    status('Caméra prête — faites entrer un objet en A ou B','ok');
+    hideCamError();bgMean=null;bgVar=null;heatBuf=null;warmupFrames=0;resetTracker();
+    status('Caméra prête — attendez 2 s (calibration)','ok');
   }catch(e){
     const msg=e.name==='NotAllowedError'?'Permission refusée. Autorisez la caméra.'
       :e.name==='NotFoundError'?'Aucune caméra détectée.':'Erreur : '+e.message;
     showCamError(msg);status('Caméra inaccessible','err');
   }
 }
-
 let loopRunning=false;
 function startLoop(){
   if(loopRunning)return;loopRunning=true;
@@ -305,19 +313,43 @@ function startLoop(){
 }
 
 /* ============================================================
-   DÉTECTION DE BLOBS (sur 160x90 = moins de bruit)
+   MODÈLE DE FOND ADAPTATIF (moyenne + variance par pixel)
    ============================================================ */
+let bgMean=null,bgVar=null,heatBuf=null;
+let warmupFrames=0;
+const WARMUP=20;      // 20 frames pour stabiliser la moyenne
+const ALPHA_IDLE=0.03;// mise à jour fond : 3% si pixel stable
+const ALPHA_MOVE=0.002;// mise à jour fond : 0.2% si pixel en mouvement
+
+/* ---------- Masques ---------- */
 const maskBuf=new Uint8Array(PW*PH);
+const erodedBuf=new Uint8Array(PW*PH);
 const visitedBuf=new Uint8Array(PW*PH);
 const queueBuf=new Int32Array(PW*PH);
 
+/* ---------- Érosion 3x3 (élimine pixels isolés) ---------- */
+function erode3x3(y0,y1){
+  erodedBuf.fill(0);
+  for(let y=y0+1;y<y1-1;y++){
+    for(let x=1;x<PW-1;x++){
+      const i=y*PW+x;
+      if(!maskBuf[i])continue;
+      /* Un pixel reste que si TOUS ses 4 voisins directs sont en mouvement */
+      if(maskBuf[i-1] && maskBuf[i+1] && maskBuf[i-PW] && maskBuf[i+PW]){
+        erodedBuf[i]=1;
+      }
+    }
+  }
+}
+
+/* ---------- Détection de blobs sur le masque érodé ---------- */
 function detectBlobs(y0,y1){
   visitedBuf.fill(0);
   const blobs=[];
   for(let y=y0;y<y1;y++){
     for(let x=0;x<PW;x++){
       const startIdx=y*PW+x;
-      if(!maskBuf[startIdx]||visitedBuf[startIdx])continue;
+      if(!erodedBuf[startIdx]||visitedBuf[startIdx])continue;
       let head=0,tail=0;
       queueBuf[tail++]=startIdx;visitedBuf[startIdx]=1;
       let minX=x,maxX=x,minY=y,maxY=y,count=0;
@@ -327,14 +359,13 @@ function detectBlobs(y0,y1){
         count++;
         if(px<minX)minX=px;if(px>maxX)maxX=px;
         if(py<minY)minY=py;if(py>maxY)maxY=py;
-        if(px>0){const n=idx-1;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
-        if(px<PW-1){const n=idx+1;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
-        if(py>y0){const n=idx-PW;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
-        if(py<y1-1){const n=idx+PW;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
+        if(px>0){const n=idx-1;if(erodedBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
+        if(px<PW-1){const n=idx+1;if(erodedBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
+        if(py>y0){const n=idx-PW;if(erodedBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
+        if(py<y1-1){const n=idx+PW;if(erodedBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
       }
       if(count>=S.area){
         const w=(maxX-minX+1)/PW,h=(maxY-minY+1)/PH;
-        /* ✅ Filtre strict : largeur ≥ 3%, hauteur ≥ 3%, ratio cohérent */
         if(w>=0.03&&h>=0.03&&w<0.95&&h<0.95){
           blobs.push({
             cx:((minX+maxX)/2)/PW,cy:((minY+maxY)/2)/PH,
@@ -348,9 +379,7 @@ function detectBlobs(y0,y1){
   return blobs;
 }
 
-/* ============================================================
-   FUSION DES BLOBS PROCHES (clustering spatial)
-   ============================================================ */
+/* ---------- Fusion des blobs proches ---------- */
 function mergeBlobs(blobs){
   if(blobs.length<=1)return blobs;
   const sorted=[...blobs].sort((a,b)=>b.area-a.area);
@@ -371,8 +400,7 @@ function mergeBlobs(blobs){
         if(dist<MERGE_DIST||(overlapX>-MERGE_GAP&&overlapY>-MERGE_GAP)){
           b.x1=Math.min(b.x1,o.x1);b.x2=Math.max(b.x2,o.x2);
           b.y1=Math.min(b.y1,o.y1);b.y2=Math.max(b.y2,o.y2);
-          b.w=b.x2-b.x1;b.h=b.y2-b.y1;
-          b.area+=o.area;
+          b.w=b.x2-b.x1;b.h=b.y2-b.y1;b.area+=o.area;
           b.cx=(b.x1+b.x2)/2;b.cy=(b.y1+b.y2)/2;
           used.add(j);changed=true;
         }
@@ -384,87 +412,56 @@ function mergeBlobs(blobs){
 }
 
 /* ============================================================
-   TRACKER — Filtre de Kalman 1D + verrouillage de taille
+   TRACKER
    ============================================================ */
 let tracker=null,lastFinishT=0,trail=[];
 const A=()=>S.a/100;
 const B=()=>S.b/100;
 const TOL=()=>S.entryTol/100;
-
-/* Paramètres Kalman 1D */
-const KF_Q=0.0005;   // bruit de processus (petit = très lisse)
-const KF_R=0.03;     // bruit de mesure (grand = confiance faible en la mesure brute)
-
-/* Verrouillage de taille */
-const SIZE_LOCK=0.40;  // un blob qui change de ±40% de taille est ignoré
-
-const LOST_TIMEOUT=2500;
-const TRACK_TIMEOUT=15000;
-const MIN_MOVE=0.01;   // 1% de la largeur (plus strict que 0.5%)
+const KF_Q=0.0005,KF_R=0.03;
+const SIZE_LOCK=0.40;
+const LOST_TIMEOUT=2500,TRACK_TIMEOUT=15000,MIN_MOVE=0.01;
 
 function resetTracker(){
   tracker=null;trail=[];
   $('dash').classList.remove('tracking','valid','over');
   lastState='idle';
 }
-
 function blobNearLine(b,lineX,tol){
   const overlap=(b.x1<=lineX+tol)&&(b.x2>=lineX-tol);
   const centerNear=Math.abs(b.cx-lineX)<=tol;
   return overlap||centerNear;
 }
-
-/* ============================================================
-   FILTRE DE KALMAN 1D (très simple)
-   ============================================================ */
-function kfInit(pos){
-  return {pos:pos, vel:0, pPos:1, pVel:1};
-}
-function kfPredict(kf, dt){
-  // Prédiction : position += velocity * dt
-  kf.pos += kf.vel * dt;
-  kf.pPos += KF_Q + dt * kf.pVel;
-  kf.pVel += KF_Q;
-}
-function kfUpdate(kf, measurement, dt){
-  // Gain de Kalman
-  const S_gain = kf.pPos + KF_R;
-  const K = kf.pPos / S_gain;
-  // Correction
-  const innovation = measurement - kf.pos;
-  kf.pos += K * innovation;
-  kf.pPos = (1 - K) * kf.pPos;
-  // Estimation de la vélocité (sur les positions)
-  if(dt > 0.001){
-    const measVel = innovation / dt;
-    kf.vel = kf.vel * 0.7 + measVel * 0.3;
-  }
+function kfInit(pos){return{pos,vel:0,pPos:1,pVel:1}}
+function kfPredict(kf,dt){kf.pos+=kf.vel*dt;kf.pPos+=KF_Q+dt*kf.pVel;kf.pVel+=KF_Q}
+function kfUpdate(kf,meas,dt){
+  const K=kf.pPos/(kf.pPos+KF_R);
+  const innov=meas-kf.pos;
+  kf.pos+=K*innov;
+  kf.pPos=(1-K)*kf.pPos;
+  if(dt>0.001)kf.vel=kf.vel*0.7+(innov/dt)*0.3;
 }
 
 function updateTracker(blobs,t){
-  /* --- PHASE 1 : chercher une entrée (strict) --- */
   if(!tracker){
     if(t-lastFinishT<600)return;
     const tol=TOL();
-    /* ✅ On prend LE PLUS GROS blob qui touche A ou B,
-       ET dont l'aire est ≥ 2× S.area (évite les micro-blobs) */
     let bestB=null,bestLine=null,bestArea=0;
     for(const b of blobs){
-      if(b.area < S.area*2) continue;
-      if(blobNearLine(b,A(),tol) && b.area>bestArea){bestB=b;bestLine='A';bestArea=b.area}
-      if(blobNearLine(b,B(),tol) && b.area>bestArea){bestB=b;bestLine='B';bestArea=b.area}
+      if(b.area<S.area*2)continue;
+      if(blobNearLine(b,A(),tol)&&b.area>bestArea){bestB=b;bestLine='A';bestArea=b.area}
+      if(blobNearLine(b,B(),tol)&&b.area>bestArea){bestB=b;bestLine='B';bestArea=b.area}
     }
     if(bestB){
       tracker={
         x1:bestB.x1,x2:bestB.x2,y1:bestB.y1,y2:bestB.y2,
         w:bestB.w,h:bestB.h,area:bestB.area,
-        kfX: kfInit(bestB.cx),
-        kfY: kfInit(bestB.cy),
-        cx:bestB.cx, cy:bestB.cy,
-        prevCx:bestB.cx, prevT:t,
-        firstSeen:t, lastSeenT:t, lastT:t,
-        lockTime:t, lockLine:bestLine,
-        missCount:0, updateCount:0
+        kfX:kfInit(bestB.cx),kfY:kfInit(bestB.cy),
+        cx:bestB.cx,cy:bestB.cy,
+        prevCx:bestB.cx,prevT:t,
+        firstSeen:t,lastSeenT:t,lastT:t,
+        lockTime:t,lockLine:bestLine,
+        missCount:0
       };
       trail=[{x:bestB.cx,y:bestB.cy,t}];
       lastState='tracking';
@@ -474,93 +471,59 @@ function updateTracker(blobs,t){
     }
     return;
   }
-
-  /* --- PHASE 2 : suivi avec Kalman --- */
   const dt=Math.max(0.001,(t-tracker.lastT)/1000);
-
-  /* Prédiction Kalman */
-  kfPredict(tracker.kfX,dt);
-  kfPredict(tracker.kfY,dt);
-
-  /* Chercher le blob le plus proche de la prédiction */
+  kfPredict(tracker.kfX,dt);kfPredict(tracker.kfY,dt);
+  const predX=tracker.kfX.pos,predY=tracker.kfY.pos;
   let best=null,bestD=Infinity;
-  const predX=tracker.kfX.pos, predY=tracker.kfY.pos;
   for(const b of blobs){
-    /* ✅ Vérification de taille : le blob doit être de taille similaire */
-    const sizeRatio=Math.abs(b.area-tracker.area)/Math.max(tracker.area,1);
-    if(sizeRatio > SIZE_LOCK) continue;
-    const d=Math.hypot(b.cx-predX, b.cy-predY);
+    const sr=Math.abs(b.area-tracker.area)/Math.max(tracker.area,1);
+    if(sr>SIZE_LOCK)continue;
+    const d=Math.hypot(b.cx-predX,b.cy-predY);
     if(d<bestD){bestD=d;best=b}
   }
-
-  const matchMax=0.20 + dt*0.4;
-
-  if(best && bestD<matchMax){
-    /* Correction Kalman avec la mesure */
-    kfUpdate(tracker.kfX, best.cx, dt);
-    kfUpdate(tracker.kfY, best.cy, dt);
-    
-    tracker.prevCx = tracker.cx;
-    tracker.prevT = tracker.lastT;
-    tracker.cx = tracker.kfX.pos;
-    tracker.cy = tracker.kfY.pos;
-    
-    /* BBox : lissage doux */
-    tracker.x1 = tracker.x1*0.75 + best.x1*0.25;
-    tracker.x2 = tracker.x2*0.75 + best.x2*0.25;
-    tracker.y1 = tracker.y1*0.75 + best.y1*0.25;
-    tracker.y2 = tracker.y2*0.75 + best.y2*0.25;
-    tracker.w = tracker.x2-tracker.x1;
-    tracker.h = tracker.y2-tracker.y1;
-    tracker.area = best.area;
-    
-    tracker.lastT=t; tracker.lastSeenT=t; tracker.missCount=0;
-    tracker.updateCount++;
+  const matchMax=0.20+dt*0.4;
+  if(best&&bestD<matchMax){
+    kfUpdate(tracker.kfX,best.cx,dt);kfUpdate(tracker.kfY,best.cy,dt);
+    tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
+    tracker.cx=tracker.kfX.pos;tracker.cy=tracker.kfY.pos;
+    tracker.x1=tracker.x1*0.75+best.x1*0.25;
+    tracker.x2=tracker.x2*0.75+best.x2*0.25;
+    tracker.y1=tracker.y1*0.75+best.y1*0.25;
+    tracker.y2=tracker.y2*0.75+best.y2*0.25;
+    tracker.w=tracker.x2-tracker.x1;tracker.h=tracker.y2-tracker.y1;
+    tracker.area=best.area;
+    tracker.lastT=t;tracker.lastSeenT=t;tracker.missCount=0;
   }else{
-    /* Frame manquée : on garde la prédiction Kalman */
     tracker.missCount++;
-    tracker.prevCx=tracker.cx;
-    tracker.prevT=tracker.lastT;
-    tracker.cx=tracker.kfX.pos;
-    tracker.cy=tracker.kfY.pos;
+    tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
+    tracker.cx=tracker.kfX.pos;tracker.cy=tracker.kfY.pos;
     tracker.lastT=t;
-    if(tracker.missCount>10 || t-tracker.lastSeenT>LOST_TIMEOUT){
-      resetTracker();status('Suivi perdu — mesure annulée','err');return;
+    if(tracker.missCount>10||t-tracker.lastSeenT>LOST_TIMEOUT){
+      resetTracker();status('Suivi perdu','err');return;
     }
   }
-
-  /* --- PHASE 3 : détection de sortie --- */
   const lastTrail=trail[trail.length-1];
-  if(!lastTrail || Math.hypot(tracker.cx-lastTrail.x, tracker.cy-lastTrail.y) > MIN_MOVE){
+  if(!lastTrail||Math.hypot(tracker.cx-lastTrail.x,tracker.cy-lastTrail.y)>MIN_MOVE){
     trail.push({x:tracker.cx,y:tracker.cy,t});
   }
-  while(trail.length && t-trail[0].t>2500)trail.shift();
-
-  const exitLine = tracker.lockLine==='A' ? B() : A();
-  const px=tracker.prevCx, cx=tracker.cx;
-
+  while(trail.length&&t-trail[0].t>2500)trail.shift();
+  const exitLine=tracker.lockLine==='A'?B():A();
+  const px=tracker.prevCx,cx=tracker.cx;
   if((px-exitLine)*(cx-exitLine)<0){
     const dtFrame=tracker.lastT-tracker.prevT;
-    const frac=Math.abs(cx-px)>1e-6 ? (exitLine-px)/(cx-px) : 0.5;
+    const frac=Math.abs(cx-px)>1e-6?(exitLine-px)/(cx-px):0.5;
     const tExit=tracker.prevT+frac*dtFrame;
     const dtTotal=(tExit-tracker.lockTime)/1000;
-    if(dtTotal>0.05 && dtTotal<TRACK_TIMEOUT/1000){
+    if(dtTotal>0.05&&dtTotal<TRACK_TIMEOUT/1000){
       const kmh=S.dist/dtTotal*3.6;
-      if(kmh>0 && kmh<400){
-        finish(kmh,dtTotal,tracker.lockLine==='A'?1:-1);
-      }
+      if(kmh>0&&kmh<400)finish(kmh,dtTotal,tracker.lockLine==='A'?1:-1);
     }
-    resetTracker();
-    lastFinishT=t;
-    return;
+    resetTracker();lastFinishT=t;return;
   }
-
-  if(t-tracker.firstSeen>TRACK_TIMEOUT){
-    resetTracker();status('Temps écoulé','err');
-  }
+  if(t-tracker.firstSeen>TRACK_TIMEOUT){resetTracker();status('Temps écoulé','err')}
 }
 
-/* ---------- Process ---------- */
+/* ---------- Process principal ---------- */
 function process(t){
   if(++frames>=10){
     currentFps=Math.round(frames*1000/(t-fpsT));
@@ -568,39 +531,100 @@ function process(t){
     frames=0;fpsT=t;
   }
   if(!video.videoWidth||video.readyState<2){diag('En attente de la caméra…');return}
-  
   sync();
   pc.drawImage(video,0,0,PW,PH);
   const d=pc.getImageData(0,0,PW,PH).data,n=PW*PH;
-  if(!bg||bg.length!==n){
-    bg=new Float32Array(n);
-    for(let i=0;i<n;i++)bg[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
+
+  /* Initialisation des buffers de fond */
+  if(!bgMean||bgMean.length!==n){
+    bgMean=new Float32Array(n);
+    bgVar=new Float32Array(n);
+    heatBuf=new Uint8Array(n);
+    for(let i=0;i<n;i++)bgMean[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
+    warmupFrames=0;
+    diag(`Calibration du fond… (${WARMUP} frames)`);
     draw(t);return;
   }
-  
+  if(!heatBuf||heatBuf.length!==n)heatBuf=new Uint8Array(n);
+
   const y0=Math.floor(S.top/100*PH);
   const y1=Math.max(y0+1,Math.ceil(S.bot/100*PH));
-  
+
+  /* Étape de warmup : on apprend la variance sans détecter */
+  const warming = warmupFrames < WARMUP;
+  if(warming)warmupFrames++;
+
+  /* Construction du masque avec seuil adaptatif par pixel */
   maskBuf.fill(0);
   let totalMoving=0;
+  let noiseSum=0;
+  const requiredHeat = currentFps<10 ? 1 : 2;
+
   for(let y=y0;y<y1;y++){
     const rowOff=y*PW;
     for(let x=0;x<PW;x++){
       const i=rowOff+x;
       const g=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
-      const moving=Math.abs(g-bg[i])>S.sens;
-      bg[i]+=(g-bg[i])*(moving?.008:.05);
-      if(moving){maskBuf[i]=1;totalMoving++}
+      const diff = Math.abs(g - bgMean[i]);
+      /* ✅ Seuil adaptatif : max(fixe, k × √variance) */
+      const sigma = Math.sqrt(bgVar[i] + 1);  // +1 évite σ=0
+      const thr = Math.max(S.sens, S.noiseK * sigma);
+      const moving = diff > thr;
+      
+      if(warming){
+        /* Pendant warmup : on calcule moyenne et variance (Welford) */
+        const delta = g - bgMean[i];
+        bgMean[i] += delta / warmupFrames;
+        bgVar[i] = bgVar[i] * 0.9 + delta * delta * 0.1;
+      } else {
+        /* Mise à jour lente du fond */
+        const alpha = moving ? ALPHA_MOVE : ALPHA_IDLE;
+        const delta = g - bgMean[i];
+        bgMean[i] += alpha * delta;
+        bgVar[i] = bgVar[i] * (1 - alpha) + alpha * delta * delta;
+        
+        if(moving){
+          /* ✅ Filtre temporel : compter la chaleur */
+          if(heatBuf[i] < 3) heatBuf[i]++;
+        } else {
+          if(heatBuf[i] > 0) heatBuf[i]--;
+        }
+        
+        /* Pixel validé uniquement si chaleur suffisante */
+        if(heatBuf[i] >= requiredHeat){
+          maskBuf[i] = 1;
+          totalMoving++;
+        }
+        noiseSum += sigma;
+      }
     }
   }
-  if(totalMoving>0.85*PW*(y1-y0)){bg=null;resetTracker();draw(t);return}
-  
+
+  const noiseAvg = ((noiseSum / ((y1-y0)*PW)) || 0).toFixed(1);
+
+  if(warming){
+    diag(`Calibration ${warmupFrames}/${WARMUP} · σ moyen ${noiseAvg}`);
+    draw(t);return;
+  }
+
+  /* ✅ Détection de bruit massif : > 60% en mouvement = reset auto */
+  if(totalMoving > 0.60 * PW * (y1-y0)){
+    bgMean=null;bgVar=null;heatBuf=null;warmupFrames=0;
+    resetTracker();
+    status('Changement de scène — recalibration auto','err');
+    draw(t);return;
+  }
+
+  /* ✅ Érosion morphologique pour éliminer pixels isolés */
+  erode3x3(y0,y1);
+
+  /* Détection des blobs + fusion */
   const rawBlobs=detectBlobs(y0,y1);
   const blobs=mergeBlobs(rawBlobs);
   updateTracker(blobs,t);
-  
-  diag(`FPS ${currentFps} · Blobs ${blobs.length} (brut ${rawBlobs.length}) · Pixels ${totalMoving} · ${lastState==='idle'?'IDLE':lastState==='tracking'?'SUIVI':'finish'}`);
-  
+
+  diag(`FPS ${currentFps} · Blobs ${blobs.length} (brut ${rawBlobs.length}) · Pixels ${totalMoving} · σ ${noiseAvg} · ${lastState==='idle'?'IDLE':lastState==='tracking'?'SUIVI':'finish'}`);
+
   if(!tracker && t-lastFinishT>800){
     if(blobs.length>0)status(`${blobs.length} objet(s) — visez A ou B`);
     else status('Prêt — aucun mouvement');
@@ -672,7 +696,6 @@ function draw(t,blobs){
   oc.fillStyle=activeA?'#34d399':'#ffb020';oc.fillText('A',ax+6,yt+fs+4);
   oc.fillStyle=activeB?'#34d399':'#ffb020';oc.fillText('B',bx+6,yt+fs+4);
 
-  /* Blobs non suivis (très discret) */
   if(blobs&&blobs.length){
     for(const b of blobs){
       if(tracker && Math.abs(b.cx-tracker.cx)<0.02 && Math.abs(b.cy-tracker.cy)<0.02) continue;
@@ -681,14 +704,12 @@ function draw(t,blobs){
     }
   }
 
-  /* Tracker : centre unique, stable */
   if(tracker){
     const tx=tracker.cx*W,ty=tracker.cy*H;
     const bx1=tracker.x1*W,by1=tracker.y1*H,bw=tracker.w*W,bh=tracker.h*H;
     oc.strokeStyle='#34d399';oc.lineWidth=2.5;
     oc.shadowBlur=12;oc.shadowColor='rgba(52,211,153,.8)';
     oc.strokeRect(bx1,by1,bw,bh);oc.shadowBlur=0;
-    
     const corner=Math.min(bw,bh)*0.3;
     oc.lineWidth=4;oc.strokeStyle='#34d399';
     oc.beginPath();
@@ -697,12 +718,9 @@ function draw(t,blobs){
     oc.moveTo(bx1,by1+bh-corner);oc.lineTo(bx1,by1+bh);oc.lineTo(bx1+corner,by1+bh);
     oc.moveTo(bx1+bw-corner,by1+bh);oc.lineTo(bx1+bw,by1+bh);oc.lineTo(bx1+bw,by1+bh-corner);
     oc.stroke();
-
-    /* Croix de visée + cercle pulsant */
     oc.beginPath();oc.arc(tx,ty,14,0,7);oc.fillStyle='rgba(52,211,153,.15)';oc.fill();
     oc.beginPath();oc.arc(tx,ty,8,0,7);oc.fillStyle='rgba(52,211,153,.4)';oc.fill();
     oc.beginPath();oc.arc(tx,ty,3,0,7);oc.fillStyle='#fff';oc.fill();
-    
     oc.strokeStyle='#34d399';oc.lineWidth=2;
     oc.beginPath();
     oc.moveTo(tx-18,ty);oc.lineTo(tx-10,ty);
@@ -710,8 +728,6 @@ function draw(t,blobs){
     oc.moveTo(tx,ty-18);oc.lineTo(tx,ty-10);
     oc.moveTo(tx,ty+10);oc.lineTo(tx,ty+18);
     oc.stroke();
-
-    /* Vitesse instantanée (Kalman) */
     if(Math.abs(tracker.kfX.vel)>0.005){
       const inst=Math.abs(tracker.kfX.vel)*S.dist*3.6;
       oc.font=`600 ${fs*.7}px ui-monospace,monospace`;
@@ -822,7 +838,7 @@ async function runOcr(e){
     }
     e.plate=best.plate;e.conf=best.conf;e.ok=best.score===2;e.err=null;
     if(best.plate.length>=3)$('plate').textContent=best.plate;
-    status(e.ok?`Plaque lue : ${best.plate}`:'Plaque incertaine — ajustez la zone verte',e.ok?'ok':'err');
+    status(e.ok?`Plaque lue : ${best.plate}`:'Plaque incertaine',e.ok?'ok':'err');
   }catch(err){e.err=err.message;status('OCR : '+err.message,'err')}
   e.busy=false;renderHist();if(cur===e&&$('shPl').classList.contains('open'))showPlate(e);
 }
@@ -838,13 +854,14 @@ $('bRe').onclick=()=>cur&&runOcr(cur);
 $('plTxt').addEventListener('blur',()=>{
   if(!cur||cur.busy)return;
   const v=$('plTxt').textContent.trim().toUpperCase().replace(/[^A-Z0-9-]/g,'');
-  if(v&&v!==cur.plate){cur.plate=v;$('plate').textContent=v;renderHist();status(`Plaque corrigée : ${v}`,'ok')}
+  if(v&&v!==cur.plate){cur.plate=v;$('plate').textContent=v;renderHist()}
 });
 
 /* ---------- Actions ---------- */
 $('bFlip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCam()};
 $('bReset').onclick=()=>{
-  bg=null;resetTracker();hist.length=0;renderHist();
+  bgMean=null;bgVar=null;heatBuf=null;warmupFrames=0;
+  resetTracker();hist.length=0;renderHist();
   $('spd').textContent='--';$('plate').textContent='-- --';
   $('dt').textContent='Temps : --';$('dir').textContent='Sens : --';
   $('arc').setAttribute('stroke-dasharray','0 170');flashT=0;
@@ -865,4 +882,4 @@ startLoop();
 })();
 </script>
 </body>
-    </html>
+  </html>
