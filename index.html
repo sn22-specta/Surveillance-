@@ -25,7 +25,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 #camError{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,12,20,.95);padding:24px;text-align:center;z-index:5}
 #camError.show{display:flex}
 #camError svg{color:var(--rd);width:44px;height:44px}
-#camError p{font-size:13px;color:var(--mu);max-width:300px;line-height:1.5}
+#camError p{font-size:13px;color:var(--mu);max-width:320px;line-height:1.5}
 #camError button{background:var(--cy);color:#04211f;border:none;padding:11px 22px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer}
 
 .dash{display:grid;grid-template-columns:148px 1fr;gap:14px;align-items:center;margin:10px 12px 6px;padding:12px 14px;background:var(--pn);border:1px solid var(--bd);border-radius:16px;transition:all .3s}
@@ -190,7 +190,7 @@ const PW=320,PH=180,pcv=document.createElement('canvas');pcv.width=PW;pcv.height
 const pc=pcv.getContext('2d',{willReadFrequently:true});
 
 /* ---------- Réglages ---------- */
-const D={dist:1,a:28,b:72,top:15,bot:95,sens:22,area:40,entryTol:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
+const D={dist:1,a:28,b:72,top:15,bot:95,sens:22,area:80,entryTol:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
 const F=[
  ['Mesure'],
  ['dist','Distance réelle entre A et B','m',.1,100,.1,'Calibrage : distance réelle au sol'],
@@ -200,13 +200,13 @@ const F=[
  ['Détection'],
  ['top','Bande de détection : haut','%',0,90,1],['bot','Bande de détection : bas','%',10,100,1],
  ['sens','Seuil de mouvement','',5,120,1,'Plus bas = plus sensible'],
- ['area','Taille mini du blob','px',5,800,5,'Diminuez pour suivre de petits objets'],
+ ['area','Taille mini du blob','px',20,800,5,'Augmentez si trop de points de bruit'],
  ['Zone plaque'],
  ['px','Position X','%',0,95,1],['py','Position Y','%',0,95,1],['pw','Largeur','%',5,100,1],['ph','Hauteur','%',3,100,1]
 ];
 let S={...D};
-try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v72')||'{}'))}catch(e){}
-const save=()=>{try{localStorage.setItem('radar.v72',JSON.stringify(S))}catch(e){}};
+try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v8')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('radar.v8',JSON.stringify(S))}catch(e){}};
 
 function buildFields(){
   const box=$('fields');box.innerHTML='';
@@ -311,23 +311,19 @@ async function startCam(){
   }
 }
 
-/* ---------- BOUCLE PRINCIPALE (setInterval — infaillible) ---------- */
+/* ---------- Boucle principale (setInterval — infaillible) ---------- */
 let loopRunning=false;
 function startLoop(){
   if(loopRunning)return;
   loopRunning=true;
   setInterval(()=>{
-    try{
-      process(performance.now());
-    }catch(e){
-      console.error('[RADAR] process error:',e);
-      diag('Erreur : '+e.message);
-    }
+    try{process(performance.now())}
+    catch(e){console.error('[RADAR] process error:',e);diag('Erreur : '+e.message)}
   },33);
 }
 
 /* ============================================================
-   DÉTECTION DE BLOBS
+   DÉTECTION DE BLOBS (composantes connexes)
    ============================================================ */
 const maskBuf=new Uint8Array(PW*PH);
 const visitedBuf=new Uint8Array(PW*PH);
@@ -362,7 +358,8 @@ function detectBlobs(y0,y1){
       if(count>=S.area){
         const w=(maxX-minX+1)/PW;
         const h=(maxY-minY+1)/PH;
-        if(w<0.95&&h>0.015){
+        // ✅ FILTRE RENFORCÉ : rejette les points de bruit isolés
+        if(w>=0.02 && h>=0.02 && w<0.95){
           blobs.push({
             cx:((minX+maxX)/2)/PW, cy:((minY+maxY)/2)/PH,
             x1:minX/PW, x2:(maxX+1)/PW,
@@ -378,19 +375,66 @@ function detectBlobs(y0,y1){
 }
 
 /* ============================================================
-   TRACKER
+   FUSION DES BLOBS PROCHES (clustering spatial)
    ============================================================ */
-let tracker=null, lastFinishT=0, trail=[];
+function mergeBlobs(blobs){
+  if(blobs.length<=1)return blobs;
+  const sorted=[...blobs].sort((a,b)=>b.area-a.area);
+  const merged=[];
+  const used=new Set();
+  const MERGE_DIST=0.12;   // distance max entre centres pour fusionner
+  const MERGE_GAP=0.02;    // tolérance de chevauchement des bbox
+  
+  for(let i=0;i<sorted.length;i++){
+    if(used.has(i))continue;
+    const b={...sorted[i]};
+    used.add(i);
+    let changed=true;
+    while(changed){
+      changed=false;
+      for(let j=0;j<sorted.length;j++){
+        if(used.has(j))continue;
+        const o=sorted[j];
+        const dist=Math.hypot(b.cx-o.cx,b.cy-o.cy);
+        const overlapX=Math.min(b.x2,o.x2)-Math.max(b.x1,o.x1);
+        const overlapY=Math.min(b.y2,o.y2)-Math.max(b.y1,o.y1);
+        const close=overlapX>-MERGE_GAP && overlapY>-MERGE_GAP;
+        if(dist<MERGE_DIST||close){
+          b.x1=Math.min(b.x1,o.x1);
+          b.x2=Math.max(b.x2,o.x2);
+          b.y1=Math.min(b.y1,o.y1);
+          b.y2=Math.max(b.y2,o.y2);
+          b.w=b.x2-b.x1;
+          b.h=b.y2-b.y1;
+          b.area+=o.area;
+          b.cx=(b.x1+b.x2)/2;
+          b.cy=(b.y1+b.y2)/2;
+          used.add(j);
+          changed=true;
+        }
+      }
+    }
+    merged.push(b);
+  }
+  return merged;
+}
+
+/* ============================================================
+   TRACKER — avec anti-jitter et lissage EMA
+   ============================================================ */
+let tracker=null,lastFinishT=0,trail=[];
 const A=()=>S.a/100;
 const B=()=>S.b/100;
 const TOL=()=>S.entryTol/100;
-const MATCH_BASE=0.25;
-const MATCH_PER_SEC=0.6;
+const MATCH_BASE=0.20;
+const MATCH_PER_SEC=0.4;
 const LOST_TIMEOUT=2500;
 const TRACK_TIMEOUT=12000;
+const MIN_MOVE=0.005;      // 0.5% de la largeur (ignore les micro-mouvements)
+const EMA_ALPHA=0.35;      // lissage position
 
 function resetTracker(){
-  tracker=null; trail=[];
+  tracker=null;trail=[];
   $('dash').classList.remove('tracking','valid','over');
   lastState='idle';
 }
@@ -402,10 +446,11 @@ function blobNearLine(b,lineX,tol){
 }
 
 function updateTracker(blobs,t){
+  /* --- PHASE 1 : cherche une entrée --- */
   if(!tracker){
-    if(t-lastFinishT<500)return;
-    let bestB=null,bestLine=null,bestDist=Infinity;
+    if(t-lastFinishT<600)return;
     const tol=TOL();
+    let bestB=null,bestLine=null,bestDist=Infinity;
     for(const b of blobs){
       const dA=Math.abs(b.cx-A()),dB=Math.abs(b.cx-B());
       if(blobNearLine(b,A(),tol)&&dA<bestDist){bestB=b;bestLine='A';bestDist=dA}
@@ -414,70 +459,86 @@ function updateTracker(blobs,t){
     if(bestB){
       tracker={
         cx:bestB.cx,cy:bestB.cy,
+        rawCx:bestB.cx,rawCy:bestB.cy,
         x1:bestB.x1,x2:bestB.x2,y1:bestB.y1,y2:bestB.y2,
         w:bestB.w,h:bestB.h,area:bestB.area,
         vx:0,vy:0,
         prevCx:bestB.cx,prevT:t,
         firstSeen:t,lastSeenT:t,lastT:t,
         lockTime:t,lockLine:bestLine,
-        missed:0
+        missed:0,updates:0
       };
       trail=[{x:bestB.cx,y:bestB.cy,t}];
       lastState='tracking';
       $('dash').classList.add('tracking');
-      status(`🔒 Entrée ${bestLine} détectée — en attente de ${bestLine==='A'?'B':'A'}…`,'track');
+      status(`🔒 Entrée ${bestLine} verrouillée — en attente de ${bestLine==='A'?'B':'A'}…`,'track');
       beep(660,.05,.1);
     }
     return;
   }
-
+  
+  /* --- PHASE 2 : suit le blob le plus proche --- */
   const dt=Math.max(0.001,(t-tracker.lastT)/1000);
   const predX=tracker.cx+tracker.vx*dt;
   const predY=tracker.cy+tracker.vy*dt;
   const matchMax=MATCH_BASE+dt*MATCH_PER_SEC;
-
   let best=null,bestD=Infinity;
   for(const b of blobs){
     const d=Math.hypot(b.cx-predX,b.cy-predY);
     if(d<bestD){bestD=d;best=b}
   }
-
   if(best&&bestD<matchMax){
-    const nvx=(best.cx-tracker.cx)/dt;
-    const nvy=(best.cy-tracker.cy)/dt;
-    tracker.vx=tracker.vx*0.4+nvx*0.6;
-    tracker.vy=tracker.vy*0.4+nvy*0.6;
-    tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
-    tracker.cx=best.cx;tracker.cy=best.cy;
-    tracker.x1=best.x1;tracker.x2=best.x2;
-    tracker.y1=best.y1;tracker.y2=best.y2;
-    tracker.w=best.w;tracker.h=best.h;tracker.area=best.area;
-    tracker.lastT=t;tracker.lastSeenT=t;
-    tracker.missed=0;
+    // ✅ Anti-jitter : ne mettre à jour QUE si mouvement significatif
+    const movement=Math.hypot(best.cx-tracker.rawCx,best.cy-tracker.rawCy);
+    if(movement>=MIN_MOVE){
+      const nvx=(best.cx-tracker.rawCx)/dt;
+      const nvy=(best.cy-tracker.rawCy)/dt;
+      tracker.vx=tracker.vx*0.6+nvx*0.4;
+      tracker.vy=tracker.vy*0.6+nvy*0.4;
+      tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
+      // Lissage EMA de la position affichée
+      tracker.cx=tracker.cx*(1-EMA_ALPHA)+best.cx*EMA_ALPHA;
+      tracker.cy=tracker.cy*(1-EMA_ALPHA)+best.cy*EMA_ALPHA;
+      tracker.rawCx=best.cx;tracker.rawCy=best.cy;
+      // Lissage bbox
+      tracker.x1=tracker.x1*0.7+best.x1*0.3;
+      tracker.x2=tracker.x2*0.7+best.x2*0.3;
+      tracker.y1=tracker.y1*0.7+best.y1*0.3;
+      tracker.y2=tracker.y2*0.7+best.y2*0.3;
+      tracker.w=tracker.x2-tracker.x1;
+      tracker.h=tracker.y2-tracker.y1;
+      tracker.area=best.area;
+      tracker.updates++;
+    }
+    tracker.lastT=t;tracker.lastSeenT=t;tracker.missed=0;
   }else{
     tracker.missed++;
     tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
     tracker.cx=predX;tracker.cy=predY;
     tracker.lastT=t;
-    if(tracker.missed>6||t-tracker.lastSeenT>LOST_TIMEOUT){
+    if(tracker.missed>8||t-tracker.lastSeenT>LOST_TIMEOUT){
       resetTracker();
       status('Suivi perdu — mesure annulée','err');
       return;
     }
   }
-
-  trail.push({x:tracker.cx,y:tracker.cy,t});
-  while(trail.length&&t-trail[0].t>2000)trail.shift();
-
+  
+  /* --- PHASE 3 : détection de sortie --- */
+  const lastTrail=trail[trail.length-1];
+  if(!lastTrail||Math.hypot(tracker.cx-lastTrail.x,tracker.cy-lastTrail.y)>MIN_MOVE){
+    trail.push({x:tracker.cx,y:tracker.cy,t});
+  }
+  while(trail.length&&t-trail[0].t>2500)trail.shift();
+  
   const exitLine=tracker.lockLine==='A'?B():A();
   const px=tracker.prevCx,cx=tracker.cx;
-
+  
   if((px-exitLine)*(cx-exitLine)<0){
     const dtFrame=tracker.lastT-tracker.prevT;
     const frac=Math.abs(cx-px)>1e-6?(exitLine-px)/(cx-px):0.5;
     const tExit=tracker.prevT+frac*dtFrame;
     const dtTotal=(tExit-tracker.lockTime)/1000;
-    if(dtTotal>0.03&&dtTotal<TRACK_TIMEOUT/1000){
+    if(dtTotal>0.05&&dtTotal<TRACK_TIMEOUT/1000){
       const kmh=S.dist/dtTotal*3.6;
       if(kmh>0&&kmh<400){
         finish(kmh,dtTotal,tracker.lockLine==='A'?1:-1);
@@ -487,7 +548,7 @@ function updateTracker(blobs,t){
     lastFinishT=t;
     return;
   }
-
+  
   if(t-tracker.firstSeen>TRACK_TIMEOUT){
     resetTracker();
     status('Temps écoulé','err');
@@ -496,38 +557,26 @@ function updateTracker(blobs,t){
 
 /* ---------- Process ---------- */
 function process(t){
-  // Mise à jour FPS indépendante
   if(++frames>=10){
     currentFps=Math.round(frames*1000/(t-fpsT));
-    if(currentFps>0 && currentFps<999){
-      $('fps').textContent=currentFps+' fps';
-    }
+    if(currentFps>0&&currentFps<999)$('fps').textContent=currentFps+' fps';
     frames=0;fpsT=t;
   }
-
-  if(!video.videoWidth){
-    diag(`En attente de la caméra… (readyState ${video.readyState})`);
-    return;
-  }
-  if(video.readyState<2){
-    diag(`Caméra en démarrage… (readyState ${video.readyState})`);
-    return;
-  }
-
+  if(!video.videoWidth){diag(`En attente de la caméra… (readyState ${video.readyState})`);return}
+  if(video.readyState<2){diag(`Caméra en démarrage… (readyState ${video.readyState})`);return}
+  
   sync();
   pc.drawImage(video,0,0,PW,PH);
   const d=pc.getImageData(0,0,PW,PH).data,n=PW*PH;
-
   if(!bg||bg.length!==n){
     bg=new Float32Array(n);
     for(let i=0;i<n;i++)bg[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
     diag(`Init background… ${video.videoWidth}×${video.videoHeight}`);
     draw(t);return;
   }
-
   const y0=Math.floor(S.top/100*PH);
   const y1=Math.max(y0+1,Math.ceil(S.bot/100*PH));
-
+  
   maskBuf.fill(0);
   let totalMoving=0;
   for(let y=y0;y<y1;y++){
@@ -540,26 +589,22 @@ function process(t){
       if(moving){maskBuf[i]=1;totalMoving++}
     }
   }
-
   if(totalMoving>0.85*PW*(y1-y0)){
     bg=null;resetTracker();draw(t);return;
   }
-
-  const blobs=detectBlobs(y0,y1);
+  
+  // ✅ Détection PUIS fusion des blobs proches
+  const rawBlobs=detectBlobs(y0,y1);
+  const blobs=mergeBlobs(rawBlobs);
   lastBlobs=blobs.length;
   updateTracker(blobs,t);
-
-  // Diagnostics temps réel
-  diag(`FPS ${currentFps} · Blobs ${blobs.length} · Pixels ${totalMoving} · ${lastState==='idle'?'IDLE':lastState==='tracking'?'SUIVI':lastState}`);
-
+  
+  diag(`FPS ${currentFps} · Blobs ${blobs.length} (brut ${rawBlobs.length}) · Pixels ${totalMoving} · ${lastState==='idle'?'IDLE':lastState==='tracking'?'SUIVI':'finish'}`);
+  
   if(!tracker&&t-lastFinishT>800){
-    if(blobs.length>0){
-      status(`${blobs.length} objet(s) détecté(s) — visez A ou B`);
-    }else{
-      status('Prêt — aucun mouvement');
-    }
+    if(blobs.length>0)status(`${blobs.length} objet(s) — visez A ou B`);
+    else status('Prêt — aucun mouvement');
   }
-
   draw(t,blobs);
 }
 
@@ -595,15 +640,14 @@ function draw(t,blobs){
   oc.clearRect(0,0,W,H);
   const ax=S.a/100*W,bx=S.b/100*W,yt=S.top/100*H,yb=S.bot/100*H;
   const tol=TOL();
-
+  
   if(flashT&&t>flashT){$('dash').classList.remove('valid');flashT=0;}
-
+  
   oc.fillStyle='rgba(0,0,0,.4)';oc.fillRect(0,0,W,yt);oc.fillRect(0,yb,W,H-yb);
-
   oc.fillStyle='rgba(46,230,214,0.10)';
   oc.fillRect((A()-tol)*W,yt,tol*2*W,yb-yt);
   oc.fillRect((B()-tol)*W,yt,tol*2*W,yb-yt);
-
+  
   const bl=22,bo=10;oc.strokeStyle='rgba(46,230,214,.65)';oc.lineWidth=2;oc.lineCap='round';
   oc.beginPath();
   oc.moveTo(bo+bl,bo);oc.lineTo(bo,bo);oc.lineTo(bo,bo+bl);
@@ -611,32 +655,34 @@ function draw(t,blobs){
   oc.moveTo(bo,H-bo-bl);oc.lineTo(bo,H-bo);oc.lineTo(bo+bl,H-bo);
   oc.moveTo(W-bo,H-bo-bl);oc.lineTo(W-bo,H-bo);oc.lineTo(W-bo-bl,H-bo);
   oc.stroke();
-
+  
   const fs=Math.max(12,W/40);
   oc.lineWidth=Math.max(2,W/300);oc.setLineDash([10,7]);
   const activeA=tracker&&tracker.lockLine==='A';
   const activeB=tracker&&tracker.lockLine==='B';
-
+  
   oc.strokeStyle=activeA?'#34d399':'rgba(255,176,32,.85)';
   oc.shadowBlur=activeA?14:5;oc.shadowColor=activeA?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
   oc.beginPath();oc.moveTo(ax,yt);oc.lineTo(ax,yb);oc.stroke();oc.shadowBlur=0;
-
+  
   oc.strokeStyle=activeB?'#34d399':'rgba(255,176,32,.85)';
   oc.shadowBlur=activeB?14:5;oc.shadowColor=activeB?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
   oc.beginPath();oc.moveTo(bx,yt);oc.lineTo(bx,yb);oc.stroke();oc.setLineDash([]);oc.shadowBlur=0;
-
+  
   oc.font=`700 ${fs}px ui-monospace,monospace`;
   oc.fillStyle=activeA?'#34d399':'#ffb020';oc.fillText('A',ax+6,yt+fs+4);
   oc.fillStyle=activeB?'#34d399':'#ffb020';oc.fillText('B',bx+6,yt+fs+4);
-
+  
+  // Blobs non suivis (contours gris)
   if(blobs&&blobs.length){
     for(const b of blobs){
-      if(tracker&&Math.abs(b.cx-tracker.cx)<0.001&&Math.abs(b.cy-tracker.cy)<0.001)continue;
+      if(tracker&&Math.abs(b.cx-tracker.rawCx)<0.001&&Math.abs(b.cy-tracker.rawCy)<0.001)continue;
       oc.strokeStyle='rgba(122,138,166,.35)';oc.lineWidth=1;
       oc.strokeRect(b.x1*W,b.y1*H,b.w*W,b.h*H);
     }
   }
-
+  
+  // Tracker
   if(tracker){
     const tx=tracker.cx*W,ty=tracker.cy*H;
     const bx1=tracker.x1*W,by1=tracker.y1*H,bw=tracker.w*W,bh=tracker.h*H;
@@ -668,7 +714,7 @@ function draw(t,blobs){
       oc.fillText(`≈ ${inst.toFixed(1)} km/h`,tx+18,ty-12);
     }
   }
-
+  
   if(S.zone){
     const zx=S.px/100*W,zy=S.py/100*H,zw=S.pw/100*W,zh=S.ph/100*H;
     oc.strokeStyle='rgba(52,211,153,.9)';oc.lineWidth=2;oc.setLineDash([5,4]);
@@ -677,7 +723,7 @@ function draw(t,blobs){
     oc.fillStyle='#34d399';oc.font=`600 ${fs*.75}px system-ui`;
     oc.fillText('PLAQUE',zx+4,zy-4);
   }
-
+  
   if(trail.length>1){
     for(let i=1;i<trail.length;i++){
       const a=trail[i-1],b=trail[i],alpha=i/trail.length;
@@ -812,8 +858,8 @@ addEventListener('orientationchange',()=>setTimeout(sync,400));
 buildFields();updateStats();$('unit').textContent=S.unit==='mph'?'mph':'km/h';
 console.log('[RADAR] Boot OK');
 startCam();
-startLoop();  // ✅ Boucle infaillible via setInterval
+startLoop();
 })();
 </script>
 </body>
-  </html>
+</html>
