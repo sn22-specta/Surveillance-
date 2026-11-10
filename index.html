@@ -38,7 +38,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 
 .stage{flex:1;min-height:0;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
 #video{max-width:100%;max-height:100%}
-#remoteVideo{max-width:100%;max-height:100%;object-fit:contain;background:#000}
+#remoteVideo{max-width:100%;max-height:100%;object-fit:contain;background:#000;width:100%;height:100%}
 #ov{position:absolute;pointer-events:none}
 #camError{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,12,20,.95);padding:24px;text-align:center;z-index:5}
 #camError.show{display:flex}
@@ -117,7 +117,6 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 .conn{background:rgba(17,26,43,.95);border:1px solid var(--bd);border-radius:14px;padding:14px;margin:10px 12px;display:flex;flex-direction:column;gap:10px}
 .conn h3{font-size:13px;color:var(--cy);font-weight:700;letter-spacing:1px;text-transform:uppercase}
 .conn .idbox{background:var(--bg);border:2px dashed var(--cy);border-radius:10px;padding:14px;text-align:center;font-family:ui-monospace,monospace;font-size:20px;font-weight:800;color:var(--cy);letter-spacing:2px;cursor:pointer;user-select:all}
-.conn .idbox:active{background:rgba(46,230,214,.1)}
 .conn .hint{font-size:11px;color:var(--mu);text-align:center}
 .conn input{background:var(--bg);border:1px solid var(--bd);border-radius:10px;padding:14px;color:var(--tx);font-size:16px;font-family:ui-monospace,monospace;text-align:center;letter-spacing:2px;width:100%}
 .conn input:focus{outline:none;border-color:var(--cy)}
@@ -130,21 +129,23 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 
 #recvView{flex:1;display:flex;flex-direction:column;min-height:0}
 #recvVideoWrap{flex:1;min-height:0;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
-#recvOverlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,12,20,.85);z-index:2;transition:opacity .3s}
+#recvOverlay{position:absolute;inset:0;display:flex;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,12,20,.9);z-index:2;transition:opacity .3s;padding:24px;text-align:center}
 #recvOverlay.hide{opacity:0;pointer-events:none}
-#recvOverlay svg{width:56px;height:56px;color:var(--cy);animation:spin 2s linear infinite}
-#recvOverlay.playing svg{animation:none;color:var(--gn)}
+#recvOverlay .spinner{width:56px;height:56px;border:4px solid rgba(46,230,214,.2);border-top-color:var(--cy);border-radius:50%;animation:spin 1s linear infinite}
 @keyframes spin{100%{transform:rotate(360deg)}}
-#recvOverlay p{font-size:13px;color:var(--mu);max-width:280px;text-align:center}
-#recvOverlay button{background:var(--cy);color:#04211f;border:none;padding:12px 24px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer}
+#recvOverlay p{font-size:14px;color:var(--tx);max-width:320px;line-height:1.5;font-weight:500}
+#recvOverlay small{font-size:12px;color:var(--mu);max-width:320px;line-height:1.4;margin-top:4px}
+#recvOverlay button{background:var(--gn);color:#04211f;border:none;padding:16px 32px;border-radius:12px;font-weight:800;font-size:16px;cursor:pointer;box-shadow:0 4px 20px rgba(52,211,153,.5);animation:glow 1.5s infinite}
+#recvOverlay button:active{transform:scale(.95)}
+@keyframes glow{0%,100%{box-shadow:0 4px 20px rgba(52,211,153,.5)}50%{box-shadow:0 4px 30px rgba(52,211,153,.9)}}
 
 #recvStats{margin:10px 12px;padding:14px;background:var(--pn);border:1px solid var(--bd);border-radius:16px;display:grid;grid-template-columns:1fr 1fr;gap:14px}
 #recvStats .col{display:flex;flex-direction:column;gap:6px}
 #recvStats .lbl{font-size:10px;color:var(--mu);text-transform:uppercase;letter-spacing:1px;font-weight:700}
 #recvStats .val{font-size:26px;font-weight:800;color:var(--am);line-height:1}
 #recvStats .val.small{font-size:18px;color:var(--cy)}
-#recvStatusBar{padding:8px 14px max(10px,env(safe-area-inset-bottom));font-size:12px;text-align:center;color:var(--mu)}
-#recvDiag{font-size:10px;color:#4a5a75;font-family:ui-monospace,monospace;padding:0 14px 6px;text-align:center}
+#recvStatusBar{padding:8px 14px 4px;font-size:12px;text-align:center;color:var(--mu)}
+#recvDiag{font-size:10px;color:#4a5a75;font-family:ui-monospace,monospace;padding:0 14px max(10px,env(safe-area-inset-bottom));text-align:center;line-height:1.5}
 
 @media(orientation:landscape) and (max-height:560px){
   .dash{padding:6px 10px;margin:6px 10px}.btn{padding:6px 2px}.btn svg{display:none}
@@ -155,7 +156,6 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 </head>
 <body>
 
-<!-- LANDING -->
 <div id="landing">
   <div class="brand">
     <svg width="40" height="40" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/></svg>
@@ -174,20 +174,15 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
   </div>
 </div>
 
-<!-- ============================================================
-     ÉMETTEUR
-     ============================================================ -->
+<!-- ÉMETTEUR -->
 <div id="emitView" class="hide" style="display:flex;flex-direction:column;flex:1;min-height:0">
   <header>
-    <div class="brand">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/></svg>
-      ÉMETTEUR
-    </div>
+    <div class="brand"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/></svg>ÉMETTEUR</div>
     <div class="badge"><span class="dot off" id="peerDot"></span><span id="peerLabel">Hors ligne</span></div>
   </header>
-  <section class="conn" id="connPanel">
+  <section class="conn">
     <h3>📡 Code de connexion</h3>
-    <div class="idbox" id="myId" onclick="navigator.clipboard.writeText(this.textContent).then(()=>{this.style.color='var(--gn)';setTimeout(()=>this.style.color='',800)})">…</div>
+    <div class="idbox" id="myId">…</div>
     <div class="hint">Touchez pour copier · À saisir sur l'autre téléphone</div>
     <div class="status wait" id="connStatus">Connexion au serveur…</div>
   </section>
@@ -253,15 +248,10 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
   </div></div>
 </div>
 
-<!-- ============================================================
-     RÉCEPTEUR
-     ============================================================ -->
+<!-- RÉCEPTEUR -->
 <div id="recvView" class="hide">
   <header>
-    <div class="brand">
-      <svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/></svg>
-      RÉCEPTEUR
-    </div>
+    <div class="brand"><svg width="20" height="20" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round"><circle cx="12" cy="12" r="9"/><circle cx="12" cy="12" r="4"/><line x1="12" y1="3" x2="12" y2="6"/><line x1="12" y1="18" x2="12" y2="21"/><line x1="3" y1="12" x2="6" y2="12"/><line x1="18" y1="12" x2="21" y2="12"/></svg>RÉCEPTEUR</div>
     <div class="badge"><span class="dot off" id="recvDot"></span><span id="recvLabel">Déconnecté</span></div>
   </header>
 
@@ -276,9 +266,10 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
   <div id="recvVideoWrap">
     <video id="remoteVideo" autoplay playsinline muted></video>
     <div id="recvOverlay">
-      <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><circle cx="12" cy="12" r="9"/><path d="M12 3v6M12 15v6M3 12h6M15 12h6"/></svg>
+      <div class="spinner" id="recvSpinner"></div>
       <p id="recvOverlayMsg">En attente de la connexion…</p>
-      <button id="btnPlayVideo" class="hide" style="background:var(--gn)">▶ Activer la vidéo</button>
+      <small id="recvOverlaySub"></small>
+      <button id="btnPlayVideo" class="hide">▶ ACTIVER LA VIDÉO</button>
     </div>
   </div>
 
@@ -301,7 +292,7 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 
 <script>
 /* ============================================================
-   GÉNÉRATION ID
+   OUTILS
    ============================================================ */
 function shortId(){
   const chars='ABCDEFGHJKLMNPQRSTUVWXYZ23456789';
@@ -309,10 +300,8 @@ function shortId(){
   for(let i=0;i<8;i++)s+=chars[Math.floor(Math.random()*chars.length)];
   return 'RADAR-'+s;
 }
+const isIOS = /iPad|iPhone|iPod/.test(navigator.userAgent) && !window.MSStream;
 
-/* ============================================================
-   SÉLECTION MODE
-   ============================================================ */
 document.getElementById('btnEmit').onclick = () => {
   document.getElementById('landing').classList.add('hide');
   const v=document.getElementById('emitView');
@@ -320,7 +309,6 @@ document.getElementById('btnEmit').onclick = () => {
   v.style.display='flex';
   initEmitter();
 };
-
 document.getElementById('btnRecv').onclick = () => {
   document.getElementById('landing').classList.add('hide');
   const v=document.getElementById('recvView');
@@ -341,13 +329,10 @@ function initEmitter(){
 
   const D={dist:1,a:28,b:72,top:15,bot:95,sens:22,noiseK:3,area:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
   const F=[
-    ['Mesure'],['dist','Distance A→B','m',.1,100,.1,''],
-    ['a','Ligne A','%',5,95,1],['b','Ligne B','%',5,95,1],
+    ['Mesure'],['dist','Distance A→B','m',.1,100,.1,''],['a','Ligne A','%',5,95,1],['b','Ligne B','%',5,95,1],
     ['limit','Limite (0=aucune)','km/h',0,200,5],
     ['Détection'],['top','Bande haut','%',0,90,1],['bot','Bande bas','%',10,100,1],
-    ['sens','Seuil mouvement','',5,120,1,''],
-    ['noiseK','Sensibilité bruit','σ',1,5,.5,''],
-    ['area','Pixels mini','px',3,80,1,''],
+    ['sens','Seuil mouvement','',5,120,1,''],['noiseK','Sensibilité bruit','σ',1,5,.5,''],['area','Pixels mini','px',3,80,1,''],
     ['Zone plaque'],['px','X','%',0,95,1],['py','Y','%',0,95,1],['pw','L','%',5,100,1],['ph','H','%',3,100,1]
   ];
   let S={...D};
@@ -372,7 +357,7 @@ function initEmitter(){
   $('bDef').onclick=()=>{S={...D};save();buildFields();$('unit').textContent='km/h'};
   document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('open'));
   $('bSet').onclick=()=>{$('shSet').classList.add('open');ensureAudio()};
-  $('bRecal').onclick=()=>{bgMean=null;bgVar=null;warmupFrames=0;state='IDLE';$('dash').classList.remove('tracking');status('Fond recalibré','ok');$('shSet').classList.remove('open')};
+  $('bRecal').onclick=()=>{bgMean=null;bgVar=null;warmupFrames=0;state='IDLE';$('dash').classList.remove('tracking');status('Recalibré','ok');$('shSet').classList.remove('open')};
 
   const status=(m,c)=>{const e=$('st');e.textContent=m;e.style.color=c==='ok'?'var(--gn)':c==='err'?'var(--rd)':c==='track'?'var(--gn)':'var(--mu)'};
   const diag=(m)=>{$('diag').innerHTML=m};
@@ -408,11 +393,14 @@ function initEmitter(){
     $('stOver').textContent=stats.over;
   }
 
-  /* ---------- Caméra ---------- */
+  /* ---------- Caméra + PeerJS ---------- */
   let facing='environment',frames=0,fpsT=performance.now(),flashT=0,currentFps=0;
-  let localStream=null;
-  let streamReady=false;
-  let pendingCalls=[];  /* Appels en attente si caméra pas prête */
+  let localStream=null,streamReady=false;
+  let peer=null,dataConn=null,activeCall=null,sendInterval=null;
+  let lastCallAttempt=0;
+  const myPeerId=shortId();
+  $('myId').textContent=myPeerId;
+  $('myId').onclick=()=>navigator.clipboard.writeText(myPeerId).then(()=>{$('myId').style.color='var(--gn)';setTimeout(()=>$('myId').style.color='',800)});
 
   function sync(){
     const v=video.getBoundingClientRect(),s=stage.getBoundingClientRect();
@@ -441,18 +429,11 @@ function initEmitter(){
       $('dash').classList.remove('tracking');
       status('Caméra prête — attendez 2 s','ok');
       streamReady=true;
+      console.log('[EMIT] Camera ready,',localStream.getVideoTracks().length,'video tracks');
       
-      /* Traiter les appels en attente */
-      while(pendingCalls.length){
-        const call=pendingCalls.shift();
-        answerCall(call);
-      }
-      
-      /* Si un appel est déjà établi, remplacer la piste */
-      if(peer && peer._activeCall){
-        const sender=peer._activeCall.peerConnection.getSenders().find(s=>s.track&&s.track.kind==='video');
-        const track=localStream.getVideoTracks()[0];
-        if(sender&&track) sender.replaceTrack(track).catch(()=>{});
+      /* Si un récepteur est déjà connecté, faire l'appel maintenant */
+      if(dataConn && dataConn.open){
+        startCallToReceiver();
       }
     }catch(e){
       const msg=e.name==='NotAllowedError'?'Permission refusée. Autorisez la caméra.'
@@ -461,14 +442,6 @@ function initEmitter(){
       streamReady=false;
     }
   }
-
-  /* ---------- PeerJS émetteur ---------- */
-  let peer=null;
-  let dataConn=null;
-  let sendInterval=null;
-  let activeCall=null;
-  const myPeerId=shortId();
-  $('myId').textContent=myPeerId;
 
   function initPeer(){
     peer=new Peer(myPeerId,{debug:2});
@@ -485,78 +458,101 @@ function initEmitter(){
       updatePeerBadge('offline','Erreur');
       $('connStatus').textContent='❌ '+err.type+' — '+err.message;
       $('connStatus').className='status err';
-      if(err.type==='unavailable-id'){
-        setTimeout(()=>{peer.destroy();initPeer()},1000);
-      }
+      if(err.type==='unavailable-id')setTimeout(()=>{peer.destroy();initPeer()},1000);
     });
     
-    peer.on('disconnected',()=>{
-      updatePeerBadge('offline','Reconnexion…');
-      peer.reconnect();
-    });
+    peer.on('disconnected',()=>{updatePeerBadge('offline','Reconnexion…');peer.reconnect()});
 
-    /* Appel vidéo entrant */
-    peer.on('call',call=>{
-      console.log('[EMIT] Incoming call');
-      if(streamReady && localStream && localStream.getVideoTracks().length>0){
-        answerCall(call);
-      }else{
-        /* Caméra pas prête → mettre en file d'attente */
-        pendingCalls.push(call);
-        console.log('[EMIT] Call queued — camera not ready');
-      }
-    });
-
-    /* DataChannel entrant */
+    /* Le récepteur se connecte au DataChannel en premier */
     peer.on('connection',conn=>{
+      console.log('[EMIT] Data connection received');
       dataConn=conn;
       conn.on('open',()=>{
-        console.log('[EMIT] Data channel open');
-        $('connStatus').textContent='🎯 Récepteur connecté';
+        console.log('[EMIT] Data channel OPEN');
+        $('connStatus').textContent='🎯 Récepteur connecté — lancement du flux';
         $('connStatus').className='status ok';
         startSendLoop();
+        /* ✅ L'ÉMETTEUR fait l'appel vidéo (pas le récepteur) */
+        startCallToReceiver();
       });
       conn.on('close',()=>{
+        console.log('[EMIT] Data channel closed');
         dataConn=null;
         if(sendInterval)clearInterval(sendInterval);
+        if(activeCall)try{activeCall.close()}catch(e){}
+        activeCall=null;
+        updatePeerBadge('online','Prêt');
         $('connStatus').textContent='✅ En attente d\'un récepteur…';
         $('connStatus').className='status wait';
       });
     });
+
+    /* Si jamais le récepteur appelle (au cas où) */
+    peer.on('call',call=>{
+      console.log('[EMIT] Incoming call (unexpected)');
+      if(streamReady && localStream){
+        call.answer(new MediaStream([localStream.getVideoTracks()[0]]));
+        activeCall=call;
+      }else{
+        try{call.close()}catch(e){}
+      }
+    });
   }
 
-  function answerCall(call){
-    console.log('[EMIT] Answering call with stream');
-    activeCall=call;
-    if(peer)peer._activeCall=call;
-    
-    /* S'assurer d'avoir bien une piste vidéo */
-    const videoTrack=localStream.getVideoTracks()[0];
-    if(!videoTrack){
-      console.error('[EMIT] No video track to send');
-      call.close();
+  /* ✅ L'émetteur appelle le récepteur */
+  function startCallToReceiver(){
+    if(!peer||!peer.open||!dataConn||!dataConn.open){
+      console.warn('[EMIT] Cannot call yet — peer or data not ready');
       return;
     }
-    
-    /* Envoyer le stream */
+    if(!streamReady||!localStream){
+      console.warn('[EMIT] Cannot call yet — camera not ready');
+      return;
+    }
+    if(activeCall){
+      console.log('[EMIT] Call already active');
+      return;
+    }
+    /* Anti double appel */
+    if(performance.now()-lastCallAttempt<2000)return;
+    lastCallAttempt=performance.now();
+
+    const videoTrack=localStream.getVideoTracks()[0];
+    if(!videoTrack){
+      console.error('[EMIT] No video track!');
+      return;
+    }
+
     const outStream=new MediaStream([videoTrack]);
-    call.answer(outStream);
-    
-    updatePeerBadge('online','Connecté ✓');
-    $('connStatus').textContent='🎯 Récepteur connecté — flux en cours';
-    $('connStatus').className='status ok';
-    
-    call.on('close',()=>{
-      console.log('[EMIT] Call closed');
+    const remotePeerId=dataConn.peer;
+    console.log('[EMIT] CALLING',remotePeerId,'with video track');
+
+    try{
+      activeCall=peer.call(remotePeerId,outStream,{metadata:{role:'stream-from-emitter'}});
+      if(!activeCall){
+        console.error('[EMIT] peer.call returned null');
+        return;
+      }
+
+      activeCall.on('stream',s=>{
+        console.log('[EMIT] Remote stream event (unexpected)');
+      });
+      activeCall.on('close',()=>{
+        console.log('[EMIT] Call closed');
+        activeCall=null;
+        updatePeerBadge('online','Prêt');
+      });
+      activeCall.on('error',e=>{
+        console.error('[EMIT] Call error',e);
+      });
+
+      updatePeerBadge('online','Connecté ✓');
+      $('connStatus').textContent='📺 Flux vidéo envoyé';
+      $('connStatus').className='status ok';
+    }catch(e){
+      console.error('[EMIT] peer.call threw',e);
       activeCall=null;
-      if(peer)peer._activeCall=null;
-      updatePeerBadge('online','Prêt');
-      $('connStatus').textContent='✅ En attente d\'un récepteur…';
-      $('connStatus').className='status wait';
-    });
-    call.on('error',e=>{
-      console.error('[EMIT] Call error',e);
-    });
+    }
   }
 
   function updatePeerBadge(state,label){
@@ -574,7 +570,7 @@ function initEmitter(){
     },150);
   }
 
-  /* ---------- Détection mouvement ---------- */
+  /* ---------- Détection ---------- */
   let bgMean=null,bgVar=null,warmupFrames=0;
   const WARMUP=20,ALPHA_IDLE=0.03,ALPHA_MOVE=0.002;
   let state='IDLE',armTime=0,lastMotionTime=0,aHoldStart=0,bHoldStart=0;
@@ -585,7 +581,6 @@ function initEmitter(){
   function process(t){
     if(++frames>=10){
       currentFps=Math.round(frames*1000/(t-fpsT));
-      if(currentFps>0&&currentFps<999){}
       frames=0;fpsT=t;
     }
     if(!video.videoWidth||video.readyState<2){diag('Caméra…');return}
@@ -597,20 +592,14 @@ function initEmitter(){
       bgMean=new Float32Array(n);
       bgVar=new Float32Array(n);
       for(let i=0;i<n;i++)bgMean[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
-      warmupFrames=0;
-      diag(`Calibration…`);
-      draw(t);return;
+      warmupFrames=0;diag('Calibration…');draw(t);return;
     }
     
-    const y0=Math.floor(S.top/100*PH);
-    const y1=Math.max(y0+1,Math.ceil(S.bot/100*PH));
-    const xAi=Math.round(S.a/100*PW);
-    const xBi=Math.round(S.b/100*PW);
-    const warming=warmupFrames<WARMUP;
-    if(warming)warmupFrames++;
+    const y0=Math.floor(S.top/100*PH),y1=Math.max(y0+1,Math.ceil(S.bot/100*PH));
+    const xAi=Math.round(S.a/100*PW),xBi=Math.round(S.b/100*PW);
+    const warming=warmupFrames<WARMUP;if(warming)warmupFrames++;
     
-    colMotion.fill(0);
-    let totalMoved=0;
+    colMotion.fill(0);let totalMoved=0;
     for(let y=y0;y<y1;y++){
       const rowOff=y*PW;
       for(let x=0;x<PW;x++){
@@ -643,9 +632,8 @@ function initEmitter(){
     for(let x=xBi-beamTol;x<=xBi+beamTol;x++){if(x>=0&&x<PW)motionAtB+=colMotion[x]}
     
     corridorMotion=0;let sumX=0;
-    const cStart=Math.max(0,Math.min(xAi,xBi));
-    const cEnd=Math.min(PW-1,Math.max(xAi,xBi));
-    for(let x=cStart;x<=cEnd;x++){corridorMotion+=colMotion[x];sumX+=x*colMotion[x]}
+    const cS=Math.max(0,Math.min(xAi,xBi)),cE=Math.min(PW-1,Math.max(xAi,xBi));
+    for(let x=cS;x<=cE;x++){corridorMotion+=colMotion[x];sumX+=x*colMotion[x]}
     centroidX=corridorMotion>0?sumX/corridorMotion:0;
     
     centroidHistory.push({x:centroidX,t});
@@ -663,36 +651,31 @@ function initEmitter(){
   }
   
   function updateBeamState(t,mA,mB){
-    const beamThresh=Math.max(4,S.area);
-    const holdMs=80,minElapsed=0.05,maxElapsed=15,lostTimeout=1500;
-    
+    const bT=Math.max(4,S.area),hold=80,minE=0.05,maxE=15,lost=1500;
     if(state==='IDLE'){
-      if(mA>beamThresh){if(!aHoldStart)aHoldStart=t;if(t-aHoldStart>holdMs){state='ARMED_A';armTime=t;lastMotionTime=t;aHoldStart=0;bHoldStart=0;centroidHistory=[];beep(660);$('dash').classList.add('tracking');status('🔒 Entrée A…','track')}}else aHoldStart=0;
-      if(mB>beamThresh){if(!bHoldStart)bHoldStart=t;if(t-bHoldStart>holdMs){state='ARMED_B';armTime=t;lastMotionTime=t;aHoldStart=0;bHoldStart=0;centroidHistory=[];beep(660);$('dash').classList.add('tracking');status('🔒 Entrée B…','track')}}else bHoldStart=0;
+      if(mA>bT){if(!aHoldStart)aHoldStart=t;if(t-aHoldStart>hold){state='ARMED_A';armTime=t;lastMotionTime=t;aHoldStart=0;bHoldStart=0;centroidHistory=[];beep(660);$('dash').classList.add('tracking');status('🔒 Entrée A…','track')}}else aHoldStart=0;
+      if(mB>bT){if(!bHoldStart)bHoldStart=t;if(t-bHoldStart>hold){state='ARMED_B';armTime=t;lastMotionTime=t;aHoldStart=0;bHoldStart=0;centroidHistory=[];beep(660);$('dash').classList.add('tracking');status('🔒 Entrée B…','track')}}else bHoldStart=0;
     }else if(state==='ARMED_A'){
-      if(mB>beamThresh){const el=(t-armTime)/1000;if(el>minElapsed&&el<maxElapsed){const kmh=S.dist/el*3.6;if(kmh>0&&kmh<400){finish(kmh,el,1);state='IDLE';$('dash').classList.remove('tracking');return}}state='IDLE';$('dash').classList.remove('tracking');return}
-      if(mA>beamThresh||corridorMotion>beamThresh)lastMotionTime=t;
-      if(t-lastMotionTime>lostTimeout||t-armTime>maxElapsed*1000){state='IDLE';$('dash').classList.remove('tracking');status('Perdu','err')}
+      if(mB>bT){const el=(t-armTime)/1000;if(el>minE&&el<maxE){const kmh=S.dist/el*3.6;if(kmh>0&&kmh<400){finish(kmh,el,1);state='IDLE';$('dash').classList.remove('tracking');return}}state='IDLE';$('dash').classList.remove('tracking');return}
+      if(mA>bT||corridorMotion>bT)lastMotionTime=t;
+      if(t-lastMotionTime>lost||t-armTime>maxE*1000){state='IDLE';$('dash').classList.remove('tracking');status('Perdu','err')}
     }else if(state==='ARMED_B'){
-      if(mA>beamThresh){const el=(t-armTime)/1000;if(el>minElapsed&&el<maxElapsed){const kmh=S.dist/el*3.6;if(kmh>0&&kmh<400){finish(kmh,el,-1);state='IDLE';$('dash').classList.remove('tracking');return}}state='IDLE';$('dash').classList.remove('tracking');return}
-      if(mB>beamThresh||corridorMotion>beamThresh)lastMotionTime=t;
-      if(t-lastMotionTime>lostTimeout||t-armTime>maxElapsed*1000){state='IDLE';$('dash').classList.remove('tracking');status('Perdu','err')}
+      if(mA>bT){const el=(t-armTime)/1000;if(el>minE&&el<maxE){const kmh=S.dist/el*3.6;if(kmh>0&&kmh<400){finish(kmh,el,-1);state='IDLE';$('dash').classList.remove('tracking');return}}state='IDLE';$('dash').classList.remove('tracking');return}
+      if(mB>bT||corridorMotion>bT)lastMotionTime=t;
+      if(t-lastMotionTime>lost||t-armTime>maxE*1000){state='IDLE';$('dash').classList.remove('tracking');status('Perdu','err')}
     }
   }
   
   function finish(kmh,dt,dir){
     const v=conv(kmh);
     $('spd').textContent=v.toFixed(1);
-    let scale;
-    if(S.limit>0){scale=Math.max(S.limit*1.15,kmh*1.15,20)}
-    else{scale=Math.max(20,Math.ceil(kmh/10)*10);if(kmh>0&&kmh/scale<0.6)scale=kmh/0.85}
+    let scale;if(S.limit>0){scale=Math.max(S.limit*1.15,kmh*1.15,20)}else{scale=Math.max(20,Math.ceil(kmh/10)*10);if(kmh>0&&kmh/scale<0.6)scale=kmh/0.85}
     $('arc').setAttribute('stroke-dasharray',`${Math.min(1,kmh/scale)*169.6} 170`);
     $('dt').textContent=`Temps : ${dt.toFixed(2)} s`;
     $('dir').textContent=dir>0?'Sens : A → B':'Sens : B → A';
     const over=S.limit>0&&kmh>S.limit;
     $('dash').classList.toggle('over',over);
-    $('dash').classList.add('valid');
-    $('dash').classList.remove('tracking');
+    $('dash').classList.add('valid');$('dash').classList.remove('tracking');
     flashT=performance.now()+1200;
     status(`✅ ${fmt(v)}`,over?'err':'ok');
     if(over){beep(440,.1,.2);setTimeout(()=>beep(440,.1,.2),150)}else beep(880,.08,.15);
@@ -710,8 +693,7 @@ function initEmitter(){
   }
   
   function draw(t){
-    const W=ov.width,H=ov.height;
-    if(!W||!H)return;
+    const W=ov.width,H=ov.height;if(!W||!H)return;
     oc.clearRect(0,0,W,H);
     const ax=S.a/100*W,bx=S.b/100*W,yt=S.top/100*H,yb=S.bot/100*H;
     const xAi=Math.round(S.a/100*PW),xBi=Math.round(S.b/100*PW);
@@ -724,13 +706,11 @@ function initEmitter(){
     oc.moveTo(bo+bl,bo);oc.lineTo(bo,bo);oc.lineTo(bo,bo+bl);
     oc.moveTo(W-bo-bl,bo);oc.lineTo(W-bo,bo);oc.lineTo(W-bo,bo+bl);
     oc.moveTo(bo,H-bo-bl);oc.lineTo(bo,H-bo);oc.lineTo(bo+bl,H-bo);
-    oc.moveTo(W-bo,H-bo-bl);oc.lineTo(W-bo,H-bo);oc.lineTo(W-bo-bl,H-bo);
-    oc.stroke();
+    oc.moveTo(W-bo,H-bo-bl);oc.lineTo(W-bo,H-bo);oc.lineTo(W-bo-bl,H-bo);oc.stroke();
     const colW=(cR-cL)/Math.max(1,Math.abs(xBi-xAi));
     for(let x=Math.min(xAi,xBi);x<=Math.max(xAi,xBi);x++){
       if(x<0||x>=PW)continue;
-      const m=colMotion[x];
-      if(m<=0)continue;
+      const m=colMotion[x];if(m<=0)continue;
       const barH=Math.min(40,(m/Math.max(1,(yb-yt)/PH))*4);
       const barX=cL+((x-Math.min(xAi,xBi))/(Math.abs(xBi-xAi)||1))*(cR-cL);
       oc.fillStyle='rgba(52,211,153,0.35)';oc.fillRect(barX,yb-barH,colW+0.5,barH);
@@ -785,10 +765,7 @@ function initEmitter(){
     const c=txt.toUpperCase().replace(/[^A-Z0-9]/g,'');
     for(let i=0;i+7<=c.length;i++){
       let s='';
-      for(let j=0;j<7;j++){
-        const ch=c[i+j],isL=j<2||j>4;
-        s+=isL?(/\d/.test(ch)?(toL[ch]||'?'):ch):(/[A-Z]/.test(ch)?(toD[ch]!==undefined?toD[ch]:'?'):ch);
-      }
+      for(let j=0;j<7;j++){const ch=c[i+j],isL=j<2||j>4;s+=isL?(/\d/.test(ch)?(toL[ch]||'?'):ch):(/[A-Z]/.test(ch)?(toD[ch]!==undefined?toD[ch]:'?'):ch)}
       if(/^[A-Z]{2}\d{3}[A-Z]{2}$/.test(s))return{plate:`${s.slice(0,2)}-${s.slice(2,5)}-${s.slice(5)}`,score:2};
     }
     const m=c.match(/\d{1,4}[A-Z]{1,3}\d{2}/);if(m)return{plate:m[0],score:1};
@@ -885,43 +862,72 @@ function initReceiver(){
   const remoteVideo=$('remoteVideo');
   const overlay=$('recvOverlay');
   const overlayMsg=$('recvOverlayMsg');
+  const overlaySub=$('recvOverlaySub');
   const btnPlay=$('btnPlayVideo');
+  const spinner=$('recvSpinner');
   
-  let peer=null;
-  let dataConn=null;
-  let currentCall=null;
-  let recvFrames=0,recvFpsT=performance.now(),recvFps=0;
-  let retryTimer=null;
+  let peer=null,dataConn=null,currentCall=null;
   let videoStarted=false;
+  let recvFrames=0,recvFpsT=performance.now(),recvFps=0;
+  let lastStage='init';
 
-  /* --- Vidéo --- */
-  function startVideo(){
-    if(videoStarted)return;
-    remoteVideo.play().then(()=>{
-      videoStarted=true;
-      overlay.classList.add('hide');
-      updateRecvBadge('online','Connecté ✓');
-      $('recvStatus').textContent='✅ Connecté';
-      $('recvStatus').className='status ok';
-      $('recvConnPanel').style.display='none';
-      $('recvStatusBar').textContent='Flux vidéo en direct';
-      console.log('[RECV] Video playing');
-    }).catch(err=>{
-      console.warn('[RECV] Play blocked:',err);
-      overlayMsg.textContent='Touchez pour activer la vidéo';
-      btnPlay.classList.remove('hide');
-    });
+  function setStage(msg,sub='',showBtn=false){
+    overlayMsg.textContent=msg;
+    overlaySub.textContent=sub;
+    btnPlay.classList.toggle('hide',!showBtn);
+    overlay.classList.toggle('hide',msg===''&&!showBtn);
+  }
+  function hideOverlay(){
+    overlay.classList.add('hide');
+    videoStarted=true;
+    updateRecvBadge('online','Connecté ✓');
+    $('recvStatus').textContent='✅ Connecté';
+    $('recvStatus').className='status ok';
+    $('recvConnPanel').style.display='none';
+    $('recvStatusBar').textContent='Flux vidéo en direct';
+  }
+
+  /* ✅ Essaye de jouer la vidéo — affiche le bouton si besoin */
+  function tryPlayVideo(forceShowBtn){
+    console.log('[RECV] tryPlayVideo, iOS='+isIOS+', forceShowBtn='+forceShowBtn);
+    if(videoStarted){
+      console.log('[RECV] already playing');
+      return;
+    }
+    
+    /* Sur iOS ou si demandé, on affiche DIRECTEMENT le bouton */
+    if(isIOS || forceShowBtn){
+      setStage('Touchez le bouton ci-dessous','Pour activer la vidéo en direct',true);
+      return;
+    }
+    
+    remoteVideo.muted=true;
+    const p=remoteVideo.play();
+    if(p && p.then){
+      p.then(()=>{console.log('[RECV] play() OK');hideOverlay()})
+       .catch(err=>{
+         console.warn('[RECV] play() failed:',err.name,err.message);
+         setStage('Touchez le bouton ci-dessous','Vidéo bloquée par le navigateur',true);
+       });
+    }else{
+      hideOverlay();
+    }
   }
 
   btnPlay.onclick = () => {
-    remoteVideo.muted = true;
+    console.log('[RECV] User tapped PLAY');
+    btnPlay.classList.add('hide');
+    remoteVideo.muted=true;
     remoteVideo.play().then(()=>{
-      btnPlay.classList.add('hide');
-      startVideo();
-    }).catch(()=>{});
+      console.log('[RECV] play() after tap OK');
+      hideOverlay();
+    }).catch(err=>{
+      console.warn('[RECV] play after tap failed',err);
+      setStage('Échec lecture',err.message,true);
+    });
   };
 
-  /* Bouton "Se connecter" */
+  /* Connexion */
   $('btnConnect').onclick = () => {
     let id=$('remoteId').value.trim().toUpperCase();
     if(!id)return;
@@ -931,18 +937,24 @@ function initReceiver(){
     $('btnConnect').disabled=true;
     $('recvStatus').textContent='Connexion au serveur…';
     $('recvStatus').className='status wait';
-    overlayMsg.textContent='Connexion au radar…';
+    setStage('Connexion au radar…','');
     
     if(peer)peer.destroy();
     peer=new Peer(null,{debug:2});
     
     peer.on('open',()=>{
-      console.log('[RECV] Peer open, calling',id);
-      $('recvStatus').textContent='Appel du radar…';
-      overlayMsg.textContent='Appel du radar…';
+      console.log('[RECV] Peer open, connecting to',id);
+      setStage('Connexion au radar…','Établissement du canal');
       
-      /* 1. Data channel (mesures) */
+      /* DataChannel : juste pour les mesures */
       dataConn=peer.connect(id,{reliable:true});
+      
+      dataConn.on('open',()=>{
+        console.log('[RECV] Data channel open — waiting for call');
+        setStage('Canal établi','En attente du flux vidéo…');
+        /* ✅ Plus besoin d'appeler — T1 va nous appeler */
+      });
+      
       dataConn.on('data',data=>{
         if(data.type==='measure'){
           $('recvSpeed').textContent=data.kmh.toFixed(1);
@@ -950,137 +962,141 @@ function initReceiver(){
           $('recvDir').textContent=data.dir>0?'A → B':'B → A';
           $('recvStatusBar').textContent=`Mesure : ${data.kmh.toFixed(1)} km/h · ${new Date(data.ts).toLocaleTimeString('fr-FR')}`;
           $('recvSpeed').animate([{transform:'scale(1.2)',color:'#fff'},{transform:'scale(1)',color:'#ffb020'}],{duration:400});
-        }else if(data.type==='status'){
-          /* Statut live */
         }
       });
+      
+      dataConn.on('close',()=>{
+        console.log('[RECV] Data channel closed');
+        updateRecvBadge('offline','Déconnecté');
+        $('recvConnPanel').style.display='';
+        $('btnConnect').disabled=false;
+        setStage('Déconnecté','Reconnectez-vous',false);
+      });
+      
       dataConn.on('error',e=>console.error('[RECV] Data error',e));
+    });
+    
+    /* ✅ On ACCEPTE l'appel vidéo de T1 (plus d'appel avec stream vide) */
+    peer.on('call',call=>{
+      console.log('[RECV] Incoming call from emitter');
+      currentCall=call;
       
-      /* 2. Appel vidéo — on demande à recevoir */
-      makeCall(id);
-    });
-    
-    peer.on('error',err=>{
-      console.error('[RECV] Peer error',err);
-      $('recvStatus').textContent='❌ '+err.type;
-      $('recvStatus').className='status err';
-      overlayMsg.textContent='Erreur : '+err.type;
-      $('btnConnect').disabled=false;
-    });
-    
-    peer.on('disconnected',()=>{
-      updateRecvBadge('offline','Reconnexion…');
-      peer.reconnect();
-    });
-  };
-  
-  /* Faire l'appel vidéo */
-  function makeCall(id){
-    if(!peer||!peer.open)return;
-    if(currentCall)try{currentCall.close()}catch(e){}
-    
-    /* Stream vide : on ne fait qu'écouter */
-    const emptyStream=new MediaStream();
-    
-    try{
-      console.log('[RECV] Calling',id,'for video');
-      currentCall=peer.call(id,emptyStream,{metadata:{type:'viewer'}});
-      currentCall._remoteId=id;
+      /* Répondre SANS envoyer de stream (on ne fait qu'écouter) */
+      try{
+        call.answer();
+        console.log('[RECV] Call answered');
+      }catch(e){
+        console.warn('[RECV] answer() failed, trying null stream',e);
+        try{call.answer(null)}catch(e2){console.error('[RECV] Both answer methods failed',e2)}
+      }
       
-      /* Récupérer le flux par la méthode moderne (ontrack) */
-      const pc=currentCall.peerConnection;
-      pc.ontrack=(event)=>{
-        console.log('[RECV] ontrack fired',event.track.kind);
-        const stream=event.streams[0]||new MediaStream([event.track]);
-        if(remoteVideo.srcObject!==stream){
-          remoteVideo.srcObject=stream;
-          remoteVideo.muted=true;
-          startVideo();
+      setStage('Flux en cours de réception…','Initialisation du lecteur vidéo');
+      
+      /* Récupérer le flux via l'API moderne */
+      const pc=call.peerConnection;
+      if(pc){
+        pc.ontrack=(event)=>{
+          console.log('[RECV] ontrack fired:',event.track.kind);
+          if(event.track.kind==='video'){
+            const stream=event.streams[0]||new MediaStream([event.track]);
+            if(remoteVideo.srcObject!==stream){
+              remoteVideo.srcObject=stream;
+              tryPlayVideo();
+            }
+          }
+        };
+        
+        /* Si les pistes sont déjà là */
+        const receivers=pc.getReceivers();
+        console.log('[RECV] Receivers:',receivers.length);
+        if(receivers.length>0){
+          const streams=new Set();
+          receivers.forEach(r=>{
+            if(r.track&&r.track.kind==='video'&&r.track.readyState==='live'){
+              /* La piste est déjà là */
+            }
+          });
         }
-      };
+      }
       
-      /* Et par l'API PeerJS classique (au cas où) */
-      currentCall.on('stream',remoteStream=>{
-        console.log('[RECV] stream event fired');
+      /* API PeerJS classique en parallèle */
+      call.on('stream',remoteStream=>{
+        console.log('[RECV] PeerJS stream event');
         if(remoteVideo.srcObject!==remoteStream){
           remoteVideo.srcObject=remoteStream;
-          remoteVideo.muted=true;
-          startVideo();
+          tryPlayVideo();
         }
       });
       
-      currentCall.on('close',()=>{
+      call.on('close',()=>{
         console.log('[RECV] Call closed');
         currentCall=null;
         videoStarted=false;
         updateRecvBadge('offline','Déconnecté');
         $('recvConnPanel').style.display='';
         $('btnConnect').disabled=false;
-        overlayMsg.textContent='Flux terminé — reconnectez-vous';
-        overlay.classList.remove('hide');
+        setStage('Flux terminé','Reconnectez-vous',false);
       });
       
-      currentCall.on('error',e=>{
-        console.error('[RECV] Call error',e);
-      });
-      
-      /* Retry après 4 s si rien reçu */
-      clearTimeout(retryTimer);
-      retryTimer=setTimeout(()=>{
-        if(!videoStarted&&currentCall){
-          console.log('[RECV] Retry — no stream after 4s');
-          overlayMsg.textContent='Nouvelle tentative…';
-          try{currentCall.close()}catch(e){}
-          makeCall(id);
-        }
-      },4000);
-      
-    }catch(e){
-      console.error('[RECV] makeCall failed',e);
-      $('recvStatus').textContent='❌ '+e.message;
+      call.on('error',e=>console.error('[RECV] Call error',e));
+    });
+    
+    peer.on('error',err=>{
+      console.error('[RECV] Peer error',err);
+      $('recvStatus').textContent='❌ '+err.type;
       $('recvStatus').className='status err';
-    }
-  }
-
+      setStage('Erreur : '+err.type,err.message||'',false);
+      $('btnConnect').disabled=false;
+    });
+    
+    peer.on('disconnected',()=>{updateRecvBadge('offline','Reconnexion…');peer.reconnect()});
+  };
+  
   function updateRecvBadge(state,label){
     const dot=$('recvDot');
     if(state==='online')dot.classList.remove('off');
     else dot.classList.add('off');
     $('recvLabel').textContent=label;
   }
-
-  /* --- Diagnostic vidéo live --- */
+  
+  /* ⏱️ Timer : si après 5s on n'a pas de flux, on affiche le bouton quand même */
+  let fallbackTimer=null;
+  function armFallbackTimer(){
+    clearTimeout(fallbackTimer);
+    fallbackTimer=setTimeout(()=>{
+      if(!videoStarted && !remoteVideo.srcObject){
+        console.log('[RECV] No stream after 5s, showing manual button anyway');
+        setStage('Pas de flux reçu','Vérifiez que l\'émetteur filme bien',true);
+      }
+    },5000);
+  }
+  
+  /* Diagnostic live */
   setInterval(()=>{
     if(!remoteVideo.srcObject){
-      $('recvDiag').textContent='Pas de flux';
+      $('recvDiag').textContent='Pas de flux · '+lastStage;
       return;
     }
-    if(remoteVideo.readyState>=2){
-      recvFrames++;
-    }
-    if(performance.now()-recvFpsT>1000){
-      recvFps=recvFrames;
-      recvFrames=0;
-      recvFpsT=performance.now();
-    }
+    if(remoteVideo.readyState>=2)recvFrames++;
+    if(performance.now()-recvFpsT>1000){recvFps=recvFrames;recvFrames=0;recvFpsT=performance.now()}
     const w=remoteVideo.videoWidth,h=remoteVideo.videoHeight;
     if(w&&h){
-      $('recvDiag').textContent=`Vidéo ${w}×${h} · ${recvFps} fps · ${remoteVideo.paused?'PAUSE':'LIVE'}`;
+      $('recvDiag').textContent=`Vidéo ${w}×${h} · ${recvFps} fps · ${remoteVideo.paused?'PAUSE':'LIVE'} · iOS:${isIOS?'oui':'non'}`;
+    }else{
+      $('recvDiag').textContent=`Piste: ${remoteVideo.srcObject?'reçue':'absente'} · dims: ${w}×${h}`;
     }
   },1000);
-
-  /* --- Interpoler Enter --- */
-  $('remoteId').addEventListener('keydown',e=>{
-    if(e.key==='Enter')$('btnConnect').click();
-  });
+  
+  $('remoteId').addEventListener('keydown',e=>{if(e.key==='Enter')$('btnConnect').click()});
   $('remoteId').addEventListener('input',e=>{
     let v=e.target.value.toUpperCase().replace(/[^A-Z0-9-]/g,'');
-    if(!v.startsWith('RADAR-') && v.length>0 && !v.startsWith('R')){
-      v='RADAR-'+v;
-    }
+    if(!v.startsWith('RADAR-') && v.length>0 && !v.startsWith('R'))v='RADAR-'+v;
     e.target.value=v;
   });
+  
+  /* Quand on clique "Se connecter", armer le timer fallback */
+  $('btnConnect').addEventListener('click',armFallbackTimer,true);
 }
 </script>
 </body>
-  </html>
+    </html>
