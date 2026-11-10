@@ -3,10 +3,10 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>RADAR PRO v5</title>
+<title>RADAR PRO v6</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
 <style>
-:root{--bg:#080c14;--pn:#111a2b;--bd:#22314d;--tx:#e5ecf6;--mu:#7a8aa6;--cy:#2ee6d6;--am:#ffb020;--rd:#ff4d5e;--gn:#34d399}
+:root{--bg:#080c14;--pn:#111a2b;--bd:#22314d;--tx:#e5ecf6;--mu:#7a8aa6;--cy:#2ee6d6;--am:#ffb020;--rd:#ff4d5e;--gn:#34d399;--bl:#3b82f6}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;user-select:none;-webkit-user-select:none}
@@ -25,7 +25,8 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 
 .dash{display:grid;grid-template-columns:148px 1fr;gap:14px;align-items:center;margin:10px 12px 6px;padding:12px 14px;background:var(--pn);border:1px solid var(--bd);border-radius:16px;transition:all .3s}
 .dash.over{border-color:var(--rd);box-shadow:0 0 0 1px var(--rd),0 0 24px rgba(255,77,94,.35);animation:warn 1s infinite}
-.dash.valid{border-color:var(--gn);box-shadow:0 0 15px rgba(52,211,153,.3)}
+.dash.valid{border-color:var(--gn);box-shadow:0 0 15px rgba(52,211,153,.4)}
+.dash.tracking{border-color:var(--bl);box-shadow:0 0 15px rgba(59,130,246,.35)}
 @keyframes warn{0%,100%{box-shadow:0 0 0 1px var(--rd),0 0 24px rgba(255,77,94,.35)}50%{box-shadow:0 0 0 1px var(--rd),0 0 40px rgba(255,77,94,.6)}}
 .gauge{position:relative;width:148px;height:88px}
 .gauge svg{width:100%;height:100%;overflow:visible}
@@ -33,7 +34,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 #spd{font-size:36px;font-weight:800;line-height:1;color:var(--am);text-shadow:0 0 22px rgba(255,176,32,.4)}
 .over #spd{color:var(--rd);text-shadow:0 0 22px rgba(255,77,94,.6)}
 #unit{font-size:10px;color:var(--mu);margin-top:2px;font-weight:600;letter-spacing:1px}
-#arc{transition:stroke-dasharray .45s cubic-bezier(.2,.8,.2,1)}
+#arc{transition:stroke-dasharray .55s cubic-bezier(.34,1.2,.64,1)}
 .side{display:flex;flex-direction:column;gap:8px;min-width:0}
 
 .plate{display:flex;height:44px;border-radius:6px;overflow:hidden;background:linear-gradient(180deg,#fafcfe,#dde4eb);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15),0 2px 10px rgba(0,0,0,.4)}
@@ -143,7 +144,6 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 <div id="hist"><div class="empty">Aucun passage enregistré</div></div>
 <div id="st">Initialisation…</div>
 
-<!-- SETTINGS -->
 <div class="sheet" id="shSet"><div class="panel">
   <div class="ph">Réglages<button class="x" data-close>✕</button></div>
   <div id="fields" style="display:flex;flex-direction:column;gap:12px"></div>
@@ -154,7 +154,6 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
   <div class="two"><button class="btn" id="bCsv">Exporter CSV</button><button class="btn" id="bDef">Valeurs par défaut</button></div>
 </div></div>
 
-<!-- PLAQUE -->
 <div class="sheet" id="shPl"><div class="panel">
   <div class="ph"><span id="plT">Plaque</span><button class="x" data-close>✕</button></div>
   <img id="plFull" class="pimg" alt="Capture">
@@ -173,23 +172,23 @@ const video=$('video'),ov=$('ov'),oc=ov.getContext('2d'),stage=$('stage');
 const PW=320,PH=180,pcv=document.createElement('canvas');pcv.width=PW;pcv.height=PH;
 const pc=pcv.getContext('2d',{willReadFrequently:true});
 
-/* ---------- Réglages (Sensibilité augmentée) ---------- */
-const D={dist:10,a:28,b:72,top:20,bot:90,sens:20,area:30,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
+/* ---------- Réglages ---------- */
+const D={dist:10,a:28,b:72,top:20,bot:90,sens:22,area:40,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
 const F=[
  ['Mesure'],
- ['dist','Distance réelle entre A et B','m',.5,100,.5,'Calibrage : distance réelle sur la route'],
+ ['dist','Distance réelle entre A et B','m',.5,100,.5,'Mesurez-la au sol : c’est elle qui calibre la vitesse'],
  ['a','Position ligne A','%',5,95,1],['b','Position ligne B','%',5,95,1],
  ['limit','Limite de vitesse (0 = aucune)','km/h',0,200,5],
  ['Détection'],
  ['top','Bande de détection : haut','%',0,90,1],['bot','Bande de détection : bas','%',10,100,1],
- ['sens','Sensibilité','',5,100,1,'Plus bas = plus sensible'],
- ['area','Taille mini du mouvement','px',5,500,5,'Diminuez si les petits objets ne sont pas détectés'],
+ ['sens','Seuil de mouvement','',5,120,1,'Plus bas = plus sensible'],
+ ['area','Taille mini du mouvement','px',5,600,5,'Diminuez si les petits objets ne sont pas détectés'],
  ['Zone plaque'],
  ['px','Position X','%',0,95,1],['py','Position Y','%',0,95,1],['pw','Largeur','%',5,100,1],['ph','Hauteur','%',3,100,1]
 ];
 let S={...D};
-try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v5')||'{}'))}catch(e){}
-const save=()=>{try{localStorage.setItem('radar.v5',JSON.stringify(S))}catch(e){}};
+try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v6')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('radar.v6',JSON.stringify(S))}catch(e){}};
 
 function buildFields(){
   const box=$('fields');box.innerHTML='';
@@ -210,7 +209,7 @@ $('bDef').onclick=()=>{S={...D};save();buildFields();$('unit').textContent='km/h
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('open'));
 $('bSet').onclick=()=>{$('shSet').classList.add('open');ensureAudio()};
 
-const status=(m,c)=>{const e=$('st');e.textContent=m;e.style.color=c==='ok'?'var(--gn)':c==='err'?'var(--rd)':c==='dbg'?'#fff':'var(--mu)'};
+const status=(m,c)=>{const e=$('st');e.textContent=m;e.style.color=c==='ok'?'var(--gn)':c==='err'?'var(--rd)':c==='track'?'var(--bl)':'var(--mu)'};
 const conv=k=>S.unit==='mph'?k*0.621371:k;
 const fmt=v=>`${v.toFixed(1)} ${S.unit==='mph'?'mph':'km/h'}`;
 
@@ -247,7 +246,7 @@ function updateStats(){
 }
 
 /* ---------- Caméra ---------- */
-let facing='environment',bg=null,last=null,ses=null,mark=null,trail=[],frames=0,fpsT=performance.now(),flashT=0;
+let facing='environment',bg=null,frames=0,fpsT=performance.now(),flashT=0;
 function sync(){
   const v=video.getBoundingClientRect(),s=stage.getBoundingClientRect();
   if(!v.width)return;
@@ -258,30 +257,52 @@ function sync(){
 async function startCam(){
   try{
     if(video.srcObject)video.srcObject.getTracks().forEach(t=>t.stop());
-    // Forcer une petite résolution pour la fluidité (évite le 2 fps)
-    video.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{exact:640},height:{exact:480},frameRate:{ideal:30}},audio:false});
+    video.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}},audio:false});
     await video.play().catch(()=>{});
-    bg=null;last=null;ses=null;trail=[];
-    status('Caméra prête. Faites glisser un objet.');'ok';
+    bg=null;resetTrack();
+    status('Caméra prête');
   }catch(e){status('Caméra inaccessible : '+e.message,'err')}
 }
 const sched=()=>video.requestVideoFrameCallback?video.requestVideoFrameCallback(tick):requestAnimationFrame(tick);
 function tick(now){try{process(now)}catch(e){console.error(e)}sched()}
 
-/* ---------- Détection (Corrigée) ---------- */
+/* ============================================================
+   MACHINE À ÉTATS DU SUIVI
+   idle → hasA → (traverse) → B atteint → finish()
+        → hasB → (traverse) → A atteint → finish()
+   ============================================================ */
+let trackState='idle';   // 'idle' | 'hasA' | 'hasB'
+let track={};            // {tLock, xLock, dir, lastX, lastT}
+let prevMark=null;       // position précédente {x,y}
+let mark=null;           // centroïde courant
+let trail=[];
+let activeLine=null;     // 'A' | 'B' | null — pour l'affichage
+
+const A = () => S.a/100;
+const B = () => S.b/100;
+const ENTRY_TOL = 0.06;  // 6% de la largeur pour "verrouiller" la ligne d'entrée
+const EXIT_TOL  = 0.03;  // 3% pour "atteindre" la ligne de sortie
+const TRACK_TIMEOUT = 6000;
+
+function resetTrack(){
+  trackState='idle';track={};prevMark=null;mark=null;trail=[];activeLine=null;
+  $('dash').classList.remove('tracking','valid','over');
+}
+
 function process(t){
   if(video.readyState<2||!video.videoWidth)return;
   sync();
   if(++frames>=30){$('fps').textContent=Math.round(frames*1000/(t-fpsT))+' fps';frames=0;fpsT=t}
+
   pc.drawImage(video,0,0,PW,PH);
   const d=pc.getImageData(0,0,PW,PH).data,n=PW*PH;
-  
+
   if(!bg||bg.length!==n){
     bg=new Float32Array(n);
     for(let i=0;i<n;i++)bg[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
-    last=null;draw(t);return;
+    prevMark=null;draw(t);return;
   }
-  
+
   const y0=Math.floor(S.top/100*PH),y1=Math.max(y0+1,Math.ceil(S.bot/100*PH));
   let c=0,sx=0,sy=0;
   for(let y=0;y<PH;y++)for(let x=0;x<PW;x++){
@@ -289,71 +310,158 @@ function process(t){
     bg[i]+=(g-bg[i])*(m?.008:.05);
     if(m&&y>=y0&&y<y1){c++;sx+=x;sy+=y}
   }
-  
-  // Reset si la lumière change trop (plus de 80% de l'écran)
-  if(c>.8*PW*(y1-y0)){bg=null;last=null;mark=null;trail=[];draw(t);return}
-  
-  mark=null;
+
+  if(c>.85*PW*(y1-y0)){bg=null;prevMark=null;resetTrack();draw(t);return}
+
   if(c>=S.area){
-    const x=sx/c/PW,y=sy/c/PH;mark={x,y};
-    trail.push({x,y,t});while(trail.length&&t-trail[0].t>1500)trail.shift();
-    
-    if(last){
-      const dt = t - last.t;
-      // CORRECTION : Accepter jusqu'à 2 secondes d'écart (pour les téléphones lents)
-      if (dt > 0 && dt < 2000) {
-        const dx = Math.abs(x - last.x);
-        const dy = Math.abs(y - last.y);
-        
-        // Filtre avant/arrière très permissif (seulement si mouvement 4x plus vertical)
-        if (!(dy > 0.2 && dy > dx * 4)) {
-          const cr=[];
-          [['A',S.a/100],['B',S.b/100]].forEach(([k,L])=>{
-            if((last.x-L)*(x-L)<0){
-              cr.push({k, tc:last.t+(L-last.x)/(x-last.x)*dt, dir:Math.sign(x-last.x)});
-            }
-          });
-          cr.sort((p,q)=>p.tc-q.tc).forEach(onCross);
-        }
-      }
+    mark={x:sx/c/PW, y:sy/c/PH};
+    trail.push({x:mark.x,y:mark.y,t});while(trail.length&&t-trail[0].t>1500)trail.shift();
+    stepTracker(t, mark.x);
+  }else{
+    mark=null;
+    // Si aucun mouvement pendant longtemps, on annule le suivi
+    if(trackState!=='idle' && t-(track.lastT||0)>1000){
+      resetTrack();
+      status('Suivi perdu');
     }
-    last={x,t};
-  }else if(last&&t-last.t>500){
-    last=null;
-    if(trail.length&&t-trail[trail.length-1].t>600)trail=[];
   }
-  
-  // Affichage debug en bas pour voir si le mouvement est détecté
-  if (c > 0 && c < S.area) status(`Mouvement: ${c}px (min: ${S.area})`, 'dbg');
-  else if (c >= S.area) status(`Mouvement: ${c}px`, 'dbg');
-  else if (last && t-last.t > 500) status('Prêt.', 'info');
 
   draw(t);
 }
-function onCross({k,tc,dir}){
-  if(ses&&tc-ses.tc>8000)ses=null;
-  if(!ses||ses.k===k||ses.dir!==dir){ses={k,tc,dir};status(`Ligne ${k} franchie…`);return}
-  const dt=(tc-ses.tc)/1000;ses=null;
-  if(dt<0.03){status('Passage trop rapide ignoré','err');return}
-  const kmh=S.dist/dt*3.6;
-  if(kmh>400){status('Mesure aberrante ignorée','err');return}
-  finish(kmh,dt,dir);
+
+function stepTracker(t, x){
+  if(trackState==='idle'){
+    // Démarrage : on verrouille dès qu'on touche A ou B
+    if(Math.abs(x-A())<ENTRY_TOL){
+      trackState='hasA';
+      track={tLock:t, xLock:x, dir:0, lastX:x, lastT:t};
+      activeLine='A';
+      $('dash').classList.add('tracking');
+      status('🔒 Verrouillé sur A — suivi en cours…','track');
+      beep(660,.04,.08);
+    }else if(Math.abs(x-B())<ENTRY_TOL){
+      trackState='hasB';
+      track={tLock:t, xLock:x, dir:0, lastX:x, lastT:t};
+      activeLine='B';
+      $('dash').classList.add('tracking');
+      status('🔒 Verrouillé sur B — suivi en cours…','track');
+      beep(660,.04,.08);
+    }
+    return;
+  }
+
+  if(trackState==='hasA'){
+    track.lastT=t;
+    // Détermination de la direction (vers B = +1, retour vers A = -1)
+    if(x>A()+0.08) track.dir=1;
+    else if(x<A()-0.05) track.dir=-1;
+
+    if(track.dir===1){
+      // On attend que x atteigne B
+      if(x>=B()-EXIT_TOL){
+        // Interpolation du moment précis de franchissement de B
+        let tB=t;
+        if(track.lastX<B()){
+          const denom=x-track.lastX;
+          if(denom>1e-6) tB=track.lastT0+(B()-track.lastX)/denom*(t-track.lastT0);
+        }
+        const dt=(tB-track.tLock)/1000;
+        if(dt>0.03 && dt<TRACK_TIMEOUT/1000){
+          const kmh=S.dist/dt*3.6;
+          finish(kmh,dt,1);
+        }
+        resetTrack();
+        return;
+      }
+    }else if(track.dir===-1){
+      // Demi-tour : on annule
+      resetTrack();
+      status('Demi-tour détecté');
+      return;
+    }
+    // Timeout
+    if(t-track.tLock>TRACK_TIMEOUT){
+      resetTrack();
+      status('Suivi expiré');
+    }
+    return;
+  }
+
+  if(trackState==='hasB'){
+    track.lastT=t;
+    if(x<B()-0.08) track.dir=-1;
+    else if(x>B()+0.05) track.dir=1;
+
+    if(track.dir===-1){
+      if(x<=A()+EXIT_TOL){
+        let tA=t;
+        if(track.lastX>A()){
+          const denom=track.lastX-x;
+          if(denom>1e-6) tA=track.lastT0+(track.lastX-A())/denom*(t-track.lastT0);
+        }
+        const dt=(tA-track.tLock)/1000;
+        if(dt>0.03 && dt<TRACK_TIMEOUT/1000){
+          const kmh=S.dist/dt*3.6;
+          finish(kmh,dt,-1);
+        }
+        resetTrack();
+        return;
+      }
+    }else if(track.dir===1){
+      resetTrack();
+      status('Demi-tour détecté');
+      return;
+    }
+    if(t-track.tLock>TRACK_TIMEOUT){
+      resetTrack();
+      status('Suivi expiré');
+    }
+    return;
+  }
 }
+
+// Remplace la mise à jour "lastX / lastT0" pour l'interpolation
+// (petit hack : on garde lastX et lastT0 avant chaque nouveau point)
+const _origStep=stepTracker;
+stepTracker=function(t,x){
+  if(trackState==='hasA'||trackState==='hasB'){
+    if(track.lastX!==undefined){track.lastT0=track.lastT;}
+    track.lastX=x;
+    track.lastT=t;
+  }
+  _origStep(t,x);
+};
+
 function finish(kmh,dt,dir){
   const v=conv(kmh);
   $('spd').textContent=v.toFixed(1);
-  const mx=Math.max(120,S.limit*1.5);
-  $('arc').setAttribute('stroke-dasharray',`${Math.min(1,kmh/mx)*169.6} 170`);
+
+  // ✅ ÉCHELLE ADAPTATIVE : l'aiguille occupe toujours 75-95% de sa course
+  let scale;
+  if(S.limit>0){
+    scale=Math.max(S.limit*1.15, kmh*1.15, 20);
+  }else{
+    // Échelle "dynamique" : minimum 20 km/h, puis arrondi à la dizaine supérieure
+    scale=Math.max(20, Math.ceil(kmh/10)*10);
+    // Mais on garantit que l'aiguille est au moins à 60% de sa course
+    if(kmh>0 && kmh/scale<0.6) scale=kmh/0.85;
+  }
+  const ratio=Math.min(1, kmh/scale);
+  $('arc').setAttribute('stroke-dasharray',`${ratio*169.6} 170`);
+
   $('dt').textContent=`Temps : ${dt.toFixed(2)} s`;
   $('dir').textContent=dir>0?'Sens : →':'Sens : ←';
-  const over=S.limit>0&&kmh>S.limit;
+  const over=S.limit>0 && kmh>S.limit;
   $('dash').classList.toggle('over',over);
   $('dash').classList.add('valid');
-  flashT = performance.now() + 1000; // Flash vert pendant 1s
-  
-  status(`${fmt(v)} mesurés`,over?'err':'ok');
-  if(over){beep(440,.1,.2);setTimeout(()=>beep(440,.1,.2),150)} else beep(880,.06,.12);
+  $('dash').classList.remove('tracking');
+  flashT=performance.now()+1200;
+
+  status(`${fmt(v)} · échelle 0–${Math.round(scale)} km/h`, over?'err':'ok');
+  if(over){beep(440,.1,.2);setTimeout(()=>beep(440,.1,.2),150)}
+  else beep(880,.06,.12);
   if(navigator.vibrate)navigator.vibrate(over?[120,60,120]:40);
+
   addStat(kmh,over);
   const e=snap(kmh,over);addHist(e);
   if(S.auto)runOcr(e);
@@ -364,10 +472,11 @@ function draw(t){
   const W=ov.width,H=ov.height;oc.clearRect(0,0,W,H);
   const ax=S.a/100*W,bx=S.b/100*W,yt=S.top/100*H,yb=S.bot/100*H;
 
-  if(flashT && t > flashT){ $('dash').classList.remove('valid'); flashT = 0; }
+  if(flashT && t>flashT){ $('dash').classList.remove('valid'); flashT=0; }
 
   oc.fillStyle='rgba(0,0,0,.4)';oc.fillRect(0,0,W,yt);oc.fillRect(0,yb,W,H-yb);
 
+  // Coins HUD
   const bl=22,bo=10;oc.strokeStyle='rgba(46,230,214,.65)';oc.lineWidth=2;oc.lineCap='round';
   oc.beginPath();
   oc.moveTo(bo+bl,bo);oc.lineTo(bo,bo);oc.lineTo(bo,bo+bl);
@@ -376,15 +485,30 @@ function draw(t){
   oc.moveTo(W-bo,H-bo-bl);oc.lineTo(W-bo,H-bo);oc.lineTo(W-bo-bl,H-bo);
   oc.stroke();
 
+  // Lignes A et B (surbrillance si active)
+  const fs=Math.max(12,W/40);
+
+  // Ligne A
   oc.lineWidth=Math.max(2,W/300);oc.setLineDash([10,7]);
-  oc.strokeStyle=ses?'#2ee6d6':'rgba(255,176,32,.85)';
-  oc.shadowBlur=6;oc.shadowColor=ses?'rgba(46,230,214,.7)':'rgba(255,176,32,.5)';
-  oc.beginPath();oc.moveTo(ax,yt);oc.lineTo(ax,yb);oc.moveTo(bx,yt);oc.lineTo(bx,yb);oc.stroke();
+  oc.strokeStyle = activeLine==='A' ? '#34d399' : (trackState!=='idle' ? '#2ee6d6' : 'rgba(255,176,32,.85)');
+  oc.shadowBlur = activeLine==='A' ? 14 : 6;
+  oc.shadowColor = activeLine==='A' ? 'rgba(52,211,153,.9)' : 'rgba(255,176,32,.5)';
+  oc.beginPath();oc.moveTo(ax,yt);oc.lineTo(ax,yb);oc.stroke();
+  oc.shadowBlur=0;
+  oc.fillStyle = activeLine==='A' ? '#34d399' : '#ffb020';
+  oc.font=`700 ${fs}px ui-monospace,monospace`;
+  oc.fillText('A',ax+6,yt+fs+4);
+
+  // Ligne B
+  oc.strokeStyle = activeLine==='B' ? '#34d399' : (trackState!=='idle' ? '#2ee6d6' : 'rgba(255,176,32,.85)');
+  oc.shadowBlur = activeLine==='B' ? 14 : 6;
+  oc.shadowColor = activeLine==='B' ? 'rgba(52,211,153,.9)' : 'rgba(255,176,32,.5)';
+  oc.beginPath();oc.moveTo(bx,yt);oc.lineTo(bx,yb);oc.stroke();
   oc.setLineDash([]);oc.shadowBlur=0;
+  oc.fillStyle = activeLine==='B' ? '#34d399' : '#ffb020';
+  oc.fillText('B',bx+6,yt+fs+4);
 
-  const fs=Math.max(12,W/40);oc.font=`700 ${fs}px ui-monospace,monospace`;oc.fillStyle='#ffb020';
-  oc.fillText('A',ax+6,yt+fs+4);oc.fillText('B',bx+6,yt+fs+4);
-
+  // Zone plaque
   if(S.zone){
     const zx=S.px/100*W,zy=S.py/100*H,zw=S.pw/100*W,zh=S.ph/100*H;
     oc.strokeStyle='rgba(52,211,153,.9)';oc.lineWidth=2;oc.setLineDash([5,4]);
@@ -394,20 +518,22 @@ function draw(t){
     oc.fillText('PLAQUE',zx+4,zy-4);
   }
 
+  // Trajectoire
   if(trail.length>1){
     for(let i=1;i<trail.length;i++){
       const a=trail[i-1],b=trail[i],alpha=i/trail.length;
-      oc.strokeStyle=`rgba(255,77,94,${alpha*0.6})`;
+      oc.strokeStyle=`rgba(59,130,246,${alpha*0.7})`;
       oc.lineWidth=1+alpha*2.5;
       oc.beginPath();oc.moveTo(a.x*W,a.y*H);oc.lineTo(b.x*W,b.y*H);oc.stroke();
     }
   }
 
+  // Centroïde
   if(mark){
-    oc.beginPath();oc.arc(mark.x*W,mark.y*H,12,0,7);
-    oc.fillStyle='rgba(255,77,94,.2)';oc.fill();
-    oc.beginPath();oc.arc(mark.x*W,mark.y*H,7,0,7);
-    oc.fillStyle='#ff4d5e';oc.fill();
+    oc.beginPath();oc.arc(mark.x*W,mark.y*H,14,0,7);
+    oc.fillStyle=trackState!=='idle'?'rgba(52,211,153,.25)':'rgba(255,77,94,.2)';oc.fill();
+    oc.beginPath();oc.arc(mark.x*W,mark.y*H,8,0,7);
+    oc.fillStyle=trackState!=='idle'?'#34d399':'#ff4d5e';oc.fill();
     oc.strokeStyle='#fff';oc.lineWidth=2;oc.stroke();
   }
 }
@@ -429,7 +555,7 @@ function renderHist(){
 $('hist').onclick=ev=>{const c=ev.target.closest('.card');if(c)openPlate(hist.find(e=>String(e.id)===c.dataset.id))};
 $('bCap').onclick=()=>{ensureAudio();if(!video.videoWidth)return;const e=snap(null,false);addHist(e);openPlate(e);runOcr(e)};
 
-/* ---------- OCR plaque ---------- */
+/* ---------- OCR ---------- */
 let worker=null,wLoad=null,cur=null;
 const toL={0:'O',1:'I',5:'S',8:'B',2:'Z',6:'G',4:'A'},toD={O:0,Q:0,D:0,I:1,L:1,S:5,B:8,Z:2,G:6,T:7};
 function parsePlate(txt){
@@ -469,7 +595,7 @@ function prep(cv,variant=0){
 async function getWorker(){
   if(worker)return worker;
   if(!wLoad)wLoad=(async()=>{
-    if(typeof Tesseract==='undefined')throw new Error('Tesseract non chargé (connexion requise)');
+    if(typeof Tesseract==='undefined')throw new Error('Tesseract non chargé');
     const w=await Tesseract.createWorker('eng',1,{logger:m=>{if(cur&&m.status&&$('shPl').classList.contains('open'))$('plTxt').textContent=m.status==='recognizing text'?`Lecture ${Math.round(m.progress*100)}%`:'Chargement…'}});
     await w.setParameters({tessedit_char_whitelist:'ABCDEFGHIJKLMNOPQRSTUVWXYZ0123456789'});
     return worker=w;
@@ -525,11 +651,10 @@ $('plTxt').addEventListener('blur',()=>{
 /* ---------- Actions ---------- */
 $('bFlip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCam()};
 $('bReset').onclick=()=>{
-  bg=null;last=null;ses=null;trail=[];hist.length=0;renderHist();
+  bg=null;resetTrack();hist.length=0;renderHist();
   $('spd').textContent='--';$('plate').textContent='-- --';
   $('dt').textContent='Temps : --';$('dir').textContent='Sens : --';
   $('arc').setAttribute('stroke-dasharray','0 170');
-  $('dash').classList.remove('over','valid');
   flashT=0;
   status('Réinitialisé');
 };
@@ -542,4 +667,4 @@ startCam().then(sched);
 })();
 </script>
 </body>
-                                                        </html>
+    </html>
