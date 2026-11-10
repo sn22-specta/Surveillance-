@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>RADAR TRACKER</title>
+<title>RADAR BEAM</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
 <style>
-:root{--bg:#080c14;--pn:#111a2b;--bd:#22314d;--tx:#e5ecf6;--mu:#7a8aa6;--cy:#2ee6d6;--am:#ffb020;--rd:#ff4d5e;--gn:#34d399;--bl:#3b82f6}
+:root{--bg:#080c14;--pn:#111a2b;--bd:#22314d;--tx:#e5ecf6;--mu:#7a8aa6;--cy:#2ee6d6;--am:#ffb020;--rd:#ff4d5e;--gn:#34d399}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
 body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;user-select:none;-webkit-user-select:none}
-.num{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
+.num{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
 
 header{display:flex;justify-content:space-between;align-items:center;padding:max(10px,env(safe-area-inset-top)) 14px 8px}
 .brand{font-weight:800;letter-spacing:.2em;font-size:14px;display:flex;align-items:center;gap:8px}
@@ -166,12 +166,12 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 <div class="sheet" id="shSet"><div class="panel">
   <div class="ph">Réglages<button class="x" data-close>✕</button></div>
   <div id="fields" style="display:flex;flex-direction:column;gap:12px"></div>
-  <button class="recal" id="bRecal">🔄 Recalibrer le fond (positionner le téléphone puis cliquer)</button>
+  <button class="recal" id="bRecal">🔄 Recalibrer le fond</button>
   <div class="sw">Unité<select id="unitSel"><option value="kmh">km/h</option><option value="mph">mph</option></select></div>
   <div class="sw">Lecture auto de la plaque<input type="checkbox" id="autoOcr"></div>
   <div class="sw">Afficher la zone plaque<input type="checkbox" id="showZone"></div>
   <div class="sw">Bip sonore<input type="checkbox" id="soundOn"></div>
-  <div class="two"><button class="btn" id="bCsv">Exporter CSV</button><button class="btn" id="bDef">Valeurs par défaut</button></div>
+  <div class="two"><button class="btn" id="bCsv">Exporter CSV</button><button class="btn" id="bDef">Défaut</button></div>
 </div></div>
 
 <div class="sheet" id="shPl"><div class="panel">
@@ -195,24 +195,23 @@ const pcv=document.createElement('canvas');pcv.width=PW;pcv.height=PH;
 const pc=pcv.getContext('2d',{willReadFrequently:true});
 
 /* ---------- Réglages ---------- */
-const D={dist:1,a:28,b:72,top:15,bot:95,sens:22,area:25,entryTol:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true,noiseK:3.0};
+const D={dist:1,a:28,b:72,top:15,bot:95,sens:22,noiseK:3,area:12,entryTol:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
 const F=[
  ['Mesure'],
  ['dist','Distance réelle entre A et B','m',.1,100,.1,'Calibrage : distance réelle au sol'],
- ['a','Position ligne A','%',5,95,1],['b','Position ligne B','%',5,95,1],
- ['entryTol','Zone d\'entrée','%',3,25,1],
+ ['a','Ligne A (faisceau)','%',5,95,1],['b','Ligne B (faisceau)','%',5,95,1],
  ['limit','Limite de vitesse (0 = aucune)','km/h',0,200,5],
- ['Détection'],
+ ['Détection pixel'],
  ['top','Bande de détection : haut','%',0,90,1],['bot','Bande de détection : bas','%',10,100,1],
- ['sens','Seuil de mouvement (min)','',5,120,1,'Plus bas = plus sensible'],
- ['noiseK','Sensibilité au bruit (× σ)','σ',1,5,.5,'Augmentez si du bruit passe encore'],
- ['area','Taille mini du blob','px',10,400,5],
+ ['sens','Seuil de mouvement','',5,120,1,'Plus bas = plus sensible'],
+ ['noiseK','Sensibilité au bruit (× σ)','σ',1,5,.5,'Augmentez si du bruit passe'],
+ ['area','Pixels mini par faisceau','px',3,80,1,'Baisser pour détecter de très petits objets'],
  ['Zone plaque'],
  ['px','Position X','%',0,95,1],['py','Position Y','%',0,95,1],['pw','Largeur','%',5,100,1],['ph','Hauteur','%',3,100,1]
 ];
 let S={...D};
-try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v10')||'{}'))}catch(e){}
-const save=()=>{try{localStorage.setItem('radar.v10',JSON.stringify(S))}catch(e){}};
+try{Object.assign(S,JSON.parse(localStorage.getItem('radar.beam')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('radar.beam',JSON.stringify(S))}catch(e){}};
 
 function buildFields(){
   const box=$('fields');box.innerHTML='';
@@ -233,9 +232,8 @@ $('bDef').onclick=()=>{S={...D};save();buildFields();$('unit').textContent='km/h
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('open'));
 $('bSet').onclick=()=>{$('shSet').classList.add('open');ensureAudio()};
 $('bRecal').onclick=()=>{
-  /* ✅ Recalibrage manuel du fond */
-  bgMean=null;bgVar=null;heatBuf=null;warmupFrames=0;
-  resetTracker();
+  bgMean=null;bgVar=null;warmupFrames=0;
+  state='IDLE';$('dash').classList.remove('tracking');
   status('Fond recalibré — attendez 2 s','ok');
   $('shSet').classList.remove('open');
 };
@@ -278,7 +276,7 @@ function updateStats(){
 }
 
 /* ---------- Caméra ---------- */
-let facing='environment',frames=0,fpsT=performance.now(),flashT=0,currentFps=0,lastState='idle';
+let facing='environment',frames=0,fpsT=performance.now(),flashT=0,currentFps=0;
 function sync(){
   const v=video.getBoundingClientRect(),s=stage.getBoundingClientRect();
   if(!v.width)return;
@@ -298,8 +296,9 @@ async function startCam(){
       video:{facingMode:facing,width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}},audio:false
     });
     await video.play().catch(()=>{});
-    hideCamError();bgMean=null;bgVar=null;heatBuf=null;warmupFrames=0;resetTracker();
-    status('Caméra prête — attendez 2 s (calibration)','ok');
+    hideCamError();bgMean=null;bgVar=null;warmupFrames=0;
+    state='IDLE';$('dash').classList.remove('tracking');
+    status('Caméra prête — attendez 2 s','ok');
   }catch(e){
     const msg=e.name==='NotAllowedError'?'Permission refusée. Autorisez la caméra.'
       :e.name==='NotFoundError'?'Aucune caméra détectée.':'Erreur : '+e.message;
@@ -313,217 +312,19 @@ function startLoop(){
 }
 
 /* ============================================================
-   MODÈLE DE FOND ADAPTATIF (moyenne + variance par pixel)
+   BACKGROUND ADAPTATIF + FAISCEAUX
    ============================================================ */
-let bgMean=null,bgVar=null,heatBuf=null;
-let warmupFrames=0;
-const WARMUP=20;      // 20 frames pour stabiliser la moyenne
-const ALPHA_IDLE=0.03;// mise à jour fond : 3% si pixel stable
-const ALPHA_MOVE=0.002;// mise à jour fond : 0.2% si pixel en mouvement
+let bgMean=null,bgVar=null,warmupFrames=0;
+const WARMUP=20,ALPHA_IDLE=0.03,ALPHA_MOVE=0.002;
 
-/* ---------- Masques ---------- */
-const maskBuf=new Uint8Array(PW*PH);
-const erodedBuf=new Uint8Array(PW*PH);
-const visitedBuf=new Uint8Array(PW*PH);
-const queueBuf=new Int32Array(PW*PH);
+/* État du radar */
+let state='IDLE';
+let armTime=0,lastMotionTime=0,aHoldStart=0,bHoldStart=0;
+let colMotion=new Float32Array(PW);
+let centroidX=0,corridorMotion=0,motionAtA=0,motionAtB=0;
+let centroidHistory=[];
+let liveSpeed=0;
 
-/* ---------- Érosion 3x3 (élimine pixels isolés) ---------- */
-function erode3x3(y0,y1){
-  erodedBuf.fill(0);
-  for(let y=y0+1;y<y1-1;y++){
-    for(let x=1;x<PW-1;x++){
-      const i=y*PW+x;
-      if(!maskBuf[i])continue;
-      /* Un pixel reste que si TOUS ses 4 voisins directs sont en mouvement */
-      if(maskBuf[i-1] && maskBuf[i+1] && maskBuf[i-PW] && maskBuf[i+PW]){
-        erodedBuf[i]=1;
-      }
-    }
-  }
-}
-
-/* ---------- Détection de blobs sur le masque érodé ---------- */
-function detectBlobs(y0,y1){
-  visitedBuf.fill(0);
-  const blobs=[];
-  for(let y=y0;y<y1;y++){
-    for(let x=0;x<PW;x++){
-      const startIdx=y*PW+x;
-      if(!erodedBuf[startIdx]||visitedBuf[startIdx])continue;
-      let head=0,tail=0;
-      queueBuf[tail++]=startIdx;visitedBuf[startIdx]=1;
-      let minX=x,maxX=x,minY=y,maxY=y,count=0;
-      while(head<tail){
-        const idx=queueBuf[head++];
-        const py=(idx/PW)|0,px=idx-py*PW;
-        count++;
-        if(px<minX)minX=px;if(px>maxX)maxX=px;
-        if(py<minY)minY=py;if(py>maxY)maxY=py;
-        if(px>0){const n=idx-1;if(erodedBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
-        if(px<PW-1){const n=idx+1;if(erodedBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
-        if(py>y0){const n=idx-PW;if(erodedBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
-        if(py<y1-1){const n=idx+PW;if(erodedBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
-      }
-      if(count>=S.area){
-        const w=(maxX-minX+1)/PW,h=(maxY-minY+1)/PH;
-        if(w>=0.03&&h>=0.03&&w<0.95&&h<0.95){
-          blobs.push({
-            cx:((minX+maxX)/2)/PW,cy:((minY+maxY)/2)/PH,
-            x1:minX/PW,x2:(maxX+1)/PW,y1:minY/PH,y2:(maxY+1)/PH,
-            w,h,area:count
-          });
-        }
-      }
-    }
-  }
-  return blobs;
-}
-
-/* ---------- Fusion des blobs proches ---------- */
-function mergeBlobs(blobs){
-  if(blobs.length<=1)return blobs;
-  const sorted=[...blobs].sort((a,b)=>b.area-a.area);
-  const merged=[];const used=new Set();
-  const MERGE_DIST=0.15,MERGE_GAP=0.02;
-  for(let i=0;i<sorted.length;i++){
-    if(used.has(i))continue;
-    const b={...sorted[i]};used.add(i);
-    let changed=true;
-    while(changed){
-      changed=false;
-      for(let j=0;j<sorted.length;j++){
-        if(used.has(j))continue;
-        const o=sorted[j];
-        const dist=Math.hypot(b.cx-o.cx,b.cy-o.cy);
-        const overlapX=Math.min(b.x2,o.x2)-Math.max(b.x1,o.x1);
-        const overlapY=Math.min(b.y2,o.y2)-Math.max(b.y1,o.y1);
-        if(dist<MERGE_DIST||(overlapX>-MERGE_GAP&&overlapY>-MERGE_GAP)){
-          b.x1=Math.min(b.x1,o.x1);b.x2=Math.max(b.x2,o.x2);
-          b.y1=Math.min(b.y1,o.y1);b.y2=Math.max(b.y2,o.y2);
-          b.w=b.x2-b.x1;b.h=b.y2-b.y1;b.area+=o.area;
-          b.cx=(b.x1+b.x2)/2;b.cy=(b.y1+b.y2)/2;
-          used.add(j);changed=true;
-        }
-      }
-    }
-    merged.push(b);
-  }
-  return merged;
-}
-
-/* ============================================================
-   TRACKER
-   ============================================================ */
-let tracker=null,lastFinishT=0,trail=[];
-const A=()=>S.a/100;
-const B=()=>S.b/100;
-const TOL=()=>S.entryTol/100;
-const KF_Q=0.0005,KF_R=0.03;
-const SIZE_LOCK=0.40;
-const LOST_TIMEOUT=2500,TRACK_TIMEOUT=15000,MIN_MOVE=0.01;
-
-function resetTracker(){
-  tracker=null;trail=[];
-  $('dash').classList.remove('tracking','valid','over');
-  lastState='idle';
-}
-function blobNearLine(b,lineX,tol){
-  const overlap=(b.x1<=lineX+tol)&&(b.x2>=lineX-tol);
-  const centerNear=Math.abs(b.cx-lineX)<=tol;
-  return overlap||centerNear;
-}
-function kfInit(pos){return{pos,vel:0,pPos:1,pVel:1}}
-function kfPredict(kf,dt){kf.pos+=kf.vel*dt;kf.pPos+=KF_Q+dt*kf.pVel;kf.pVel+=KF_Q}
-function kfUpdate(kf,meas,dt){
-  const K=kf.pPos/(kf.pPos+KF_R);
-  const innov=meas-kf.pos;
-  kf.pos+=K*innov;
-  kf.pPos=(1-K)*kf.pPos;
-  if(dt>0.001)kf.vel=kf.vel*0.7+(innov/dt)*0.3;
-}
-
-function updateTracker(blobs,t){
-  if(!tracker){
-    if(t-lastFinishT<600)return;
-    const tol=TOL();
-    let bestB=null,bestLine=null,bestArea=0;
-    for(const b of blobs){
-      if(b.area<S.area*2)continue;
-      if(blobNearLine(b,A(),tol)&&b.area>bestArea){bestB=b;bestLine='A';bestArea=b.area}
-      if(blobNearLine(b,B(),tol)&&b.area>bestArea){bestB=b;bestLine='B';bestArea=b.area}
-    }
-    if(bestB){
-      tracker={
-        x1:bestB.x1,x2:bestB.x2,y1:bestB.y1,y2:bestB.y2,
-        w:bestB.w,h:bestB.h,area:bestB.area,
-        kfX:kfInit(bestB.cx),kfY:kfInit(bestB.cy),
-        cx:bestB.cx,cy:bestB.cy,
-        prevCx:bestB.cx,prevT:t,
-        firstSeen:t,lastSeenT:t,lastT:t,
-        lockTime:t,lockLine:bestLine,
-        missCount:0
-      };
-      trail=[{x:bestB.cx,y:bestB.cy,t}];
-      lastState='tracking';
-      $('dash').classList.add('tracking');
-      status(`🔒 Verrouillé sur ${bestLine} — en attente de ${bestLine==='A'?'B':'A'}…`,'track');
-      beep(660,.05,.1);
-    }
-    return;
-  }
-  const dt=Math.max(0.001,(t-tracker.lastT)/1000);
-  kfPredict(tracker.kfX,dt);kfPredict(tracker.kfY,dt);
-  const predX=tracker.kfX.pos,predY=tracker.kfY.pos;
-  let best=null,bestD=Infinity;
-  for(const b of blobs){
-    const sr=Math.abs(b.area-tracker.area)/Math.max(tracker.area,1);
-    if(sr>SIZE_LOCK)continue;
-    const d=Math.hypot(b.cx-predX,b.cy-predY);
-    if(d<bestD){bestD=d;best=b}
-  }
-  const matchMax=0.20+dt*0.4;
-  if(best&&bestD<matchMax){
-    kfUpdate(tracker.kfX,best.cx,dt);kfUpdate(tracker.kfY,best.cy,dt);
-    tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
-    tracker.cx=tracker.kfX.pos;tracker.cy=tracker.kfY.pos;
-    tracker.x1=tracker.x1*0.75+best.x1*0.25;
-    tracker.x2=tracker.x2*0.75+best.x2*0.25;
-    tracker.y1=tracker.y1*0.75+best.y1*0.25;
-    tracker.y2=tracker.y2*0.75+best.y2*0.25;
-    tracker.w=tracker.x2-tracker.x1;tracker.h=tracker.y2-tracker.y1;
-    tracker.area=best.area;
-    tracker.lastT=t;tracker.lastSeenT=t;tracker.missCount=0;
-  }else{
-    tracker.missCount++;
-    tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
-    tracker.cx=tracker.kfX.pos;tracker.cy=tracker.kfY.pos;
-    tracker.lastT=t;
-    if(tracker.missCount>10||t-tracker.lastSeenT>LOST_TIMEOUT){
-      resetTracker();status('Suivi perdu','err');return;
-    }
-  }
-  const lastTrail=trail[trail.length-1];
-  if(!lastTrail||Math.hypot(tracker.cx-lastTrail.x,tracker.cy-lastTrail.y)>MIN_MOVE){
-    trail.push({x:tracker.cx,y:tracker.cy,t});
-  }
-  while(trail.length&&t-trail[0].t>2500)trail.shift();
-  const exitLine=tracker.lockLine==='A'?B():A();
-  const px=tracker.prevCx,cx=tracker.cx;
-  if((px-exitLine)*(cx-exitLine)<0){
-    const dtFrame=tracker.lastT-tracker.prevT;
-    const frac=Math.abs(cx-px)>1e-6?(exitLine-px)/(cx-px):0.5;
-    const tExit=tracker.prevT+frac*dtFrame;
-    const dtTotal=(tExit-tracker.lockTime)/1000;
-    if(dtTotal>0.05&&dtTotal<TRACK_TIMEOUT/1000){
-      const kmh=S.dist/dtTotal*3.6;
-      if(kmh>0&&kmh<400)finish(kmh,dtTotal,tracker.lockLine==='A'?1:-1);
-    }
-    resetTracker();lastFinishT=t;return;
-  }
-  if(t-tracker.firstSeen>TRACK_TIMEOUT){resetTracker();status('Temps écoulé','err')}
-}
-
-/* ---------- Process principal ---------- */
 function process(t){
   if(++frames>=10){
     currentFps=Math.round(frames*1000/(t-fpsT));
@@ -535,106 +336,163 @@ function process(t){
   pc.drawImage(video,0,0,PW,PH);
   const d=pc.getImageData(0,0,PW,PH).data,n=PW*PH;
 
-  /* Initialisation des buffers de fond */
   if(!bgMean||bgMean.length!==n){
     bgMean=new Float32Array(n);
     bgVar=new Float32Array(n);
-    heatBuf=new Uint8Array(n);
     for(let i=0;i<n;i++)bgMean[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
     warmupFrames=0;
-    diag(`Calibration du fond… (${WARMUP} frames)`);
+    diag(`Calibration… (${WARMUP} frames)`);
     draw(t);return;
   }
-  if(!heatBuf||heatBuf.length!==n)heatBuf=new Uint8Array(n);
 
   const y0=Math.floor(S.top/100*PH);
   const y1=Math.max(y0+1,Math.ceil(S.bot/100*PH));
+  const xAi=Math.round(S.a/100*PW);
+  const xBi=Math.round(S.b/100*PW);
 
-  /* Étape de warmup : on apprend la variance sans détecter */
-  const warming = warmupFrames < WARMUP;
+  const warming=warmupFrames<WARMUP;
   if(warming)warmupFrames++;
 
-  /* Construction du masque avec seuil adaptatif par pixel */
-  maskBuf.fill(0);
-  let totalMoving=0;
-  let noiseSum=0;
-  const requiredHeat = currentFps<10 ? 1 : 2;
-
+  /* Motion pixel-par-pixel dans la bande */
+  colMotion.fill(0);
+  let totalMoved=0;
   for(let y=y0;y<y1;y++){
     const rowOff=y*PW;
     for(let x=0;x<PW;x++){
       const i=rowOff+x;
       const g=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
-      const diff = Math.abs(g - bgMean[i]);
-      /* ✅ Seuil adaptatif : max(fixe, k × √variance) */
-      const sigma = Math.sqrt(bgVar[i] + 1);  // +1 évite σ=0
-      const thr = Math.max(S.sens, S.noiseK * sigma);
-      const moving = diff > thr;
-      
+      const diff=Math.abs(g-bgMean[i]);
+      const sigma=Math.sqrt(bgVar[i]+1);
+      const thr=Math.max(S.sens,S.noiseK*sigma);
+      const moving=diff>thr;
+
       if(warming){
-        /* Pendant warmup : on calcule moyenne et variance (Welford) */
-        const delta = g - bgMean[i];
-        bgMean[i] += delta / warmupFrames;
-        bgVar[i] = bgVar[i] * 0.9 + delta * delta * 0.1;
-      } else {
-        /* Mise à jour lente du fond */
-        const alpha = moving ? ALPHA_MOVE : ALPHA_IDLE;
-        const delta = g - bgMean[i];
-        bgMean[i] += alpha * delta;
-        bgVar[i] = bgVar[i] * (1 - alpha) + alpha * delta * delta;
-        
-        if(moving){
-          /* ✅ Filtre temporel : compter la chaleur */
-          if(heatBuf[i] < 3) heatBuf[i]++;
-        } else {
-          if(heatBuf[i] > 0) heatBuf[i]--;
-        }
-        
-        /* Pixel validé uniquement si chaleur suffisante */
-        if(heatBuf[i] >= requiredHeat){
-          maskBuf[i] = 1;
-          totalMoving++;
-        }
-        noiseSum += sigma;
+        const delta=g-bgMean[i];
+        bgMean[i]+=delta/warmupFrames;
+        bgVar[i]=bgVar[i]*0.9+delta*delta*0.1;
+      }else{
+        const alpha=moving?ALPHA_MOVE:ALPHA_IDLE;
+        const old=bgMean[i];
+        bgMean[i]+=alpha*(g-old);
+        bgVar[i]=bgVar[i]*(1-alpha)+alpha*(g-old)*(g-old);
+        if(moving){colMotion[x]++;totalMoved++}
       }
     }
   }
 
-  const noiseAvg = ((noiseSum / ((y1-y0)*PW)) || 0).toFixed(1);
+  if(warming){diag(`Calibration ${warmupFrames}/${WARMUP}`);draw(t);return}
 
-  if(warming){
-    diag(`Calibration ${warmupFrames}/${WARMUP} · σ moyen ${noiseAvg}`);
+  /* Reset auto si toute l'image change */
+  if(totalMoved>0.6*PW*(y1-y0)){
+    bgMean=null;bgVar=null;warmupFrames=0;state='IDLE';
+    $('dash').classList.remove('tracking');
+    status('Changement de scène — recalibration','err');
     draw(t);return;
   }
 
-  /* ✅ Détection de bruit massif : > 60% en mouvement = reset auto */
-  if(totalMoving > 0.60 * PW * (y1-y0)){
-    bgMean=null;bgVar=null;heatBuf=null;warmupFrames=0;
-    resetTracker();
-    status('Changement de scène — recalibration auto','err');
-    draw(t);return;
+  /* Faisceaux A et B (±4 colonnes) */
+  const beamTol=4;
+  motionAtA=0;motionAtB=0;
+  for(let x=xAi-beamTol;x<=xAi+beamTol;x++){if(x>=0&&x<PW)motionAtA+=colMotion[x]}
+  for(let x=xBi-beamTol;x<=xBi+beamTol;x++){if(x>=0&&x<PW)motionAtB+=colMotion[x]}
+
+  /* Corridor + centroïde */
+  corridorMotion=0;
+  let sumX=0;
+  const cStart=Math.max(0,Math.min(xAi,xBi));
+  const cEnd=Math.min(PW-1,Math.max(xAi,xBi));
+  for(let x=cStart;x<=cEnd;x++){corridorMotion+=colMotion[x];sumX+=x*colMotion[x]}
+  centroidX=corridorMotion>0?sumX/corridorMotion:0;
+
+  /* Historique centroïde pour vitesse live */
+  centroidHistory.push({x:centroidX,t});
+  while(centroidHistory.length>25)centroidHistory.shift();
+  liveSpeed=0;
+  if(centroidHistory.length>5){
+    const first=centroidHistory[0],last=centroidHistory[centroidHistory.length-1];
+    const dx=(last.x-first.x)/PW,dt=(last.t-first.t)/1000;
+    if(dt>0.05&&Math.abs(dx)>0.01)liveSpeed=Math.abs(dx*S.dist/dt*3.6);
   }
 
-  /* ✅ Érosion morphologique pour éliminer pixels isolés */
-  erode3x3(y0,y1);
+  /* Machine à états (beam-break) */
+  updateBeamState(t,motionAtA,motionAtB,xAi,xBi);
 
-  /* Détection des blobs + fusion */
-  const rawBlobs=detectBlobs(y0,y1);
-  const blobs=mergeBlobs(rawBlobs);
-  updateTracker(blobs,t);
+  diag(`FPS ${currentFps} · A ${Math.round(motionAtA)} · B ${Math.round(motionAtB)} · Corr ${corridorMotion} · ${state}`);
+  draw(t);
+}
 
-  diag(`FPS ${currentFps} · Blobs ${blobs.length} (brut ${rawBlobs.length}) · Pixels ${totalMoving} · σ ${noiseAvg} · ${lastState==='idle'?'IDLE':lastState==='tracking'?'SUIVI':'finish'}`);
+/* ============================================================
+   BEAM-BREAK STATE MACHINE
+   IDLE → ARMED_A/B → finish
+   ============================================================ */
+function updateBeamState(t,mA,mB,xAi,xBi){
+  const beamThresh=Math.max(4,S.area);
+  const holdMs=80;
+  const minElapsed=0.05;
+  const maxElapsed=15;
+  const lostTimeout=1500;
 
-  if(!tracker && t-lastFinishT>800){
-    if(blobs.length>0)status(`${blobs.length} objet(s) — visez A ou B`);
-    else status('Prêt — aucun mouvement');
+  if(state==='IDLE'){
+    /* Entrée A ? */
+    if(mA>beamThresh){
+      if(!aHoldStart)aHoldStart=t;
+      if(t-aHoldStart>holdMs){
+        state='ARMED_A';armTime=t;lastMotionTime=t;
+        aHoldStart=0;bHoldStart=0;centroidHistory=[];
+        beep(660);
+        $('dash').classList.add('tracking');
+        status(`🔒 Entrée A détectée — attente de B…`,'track');
+      }
+    }else aHoldStart=0;
+
+    /* Entrée B ? */
+    if(mB>beamThresh){
+      if(!bHoldStart)bHoldStart=t;
+      if(t-bHoldStart>holdMs){
+        state='ARMED_B';armTime=t;lastMotionTime=t;
+        aHoldStart=0;bHoldStart=0;centroidHistory=[];
+        beep(660);
+        $('dash').classList.add('tracking');
+        status(`🔒 Entrée B détectée — attente de A…`,'track');
+      }
+    }else bHoldStart=0;
+
+  }else if(state==='ARMED_A'){
+    /* Sortie B ? */
+    if(mB>beamThresh){
+      const elapsed=(t-armTime)/1000;
+      if(elapsed>minElapsed&&elapsed<maxElapsed){
+        const kmh=S.dist/elapsed*3.6;
+        if(kmh>0&&kmh<400){finish(kmh,elapsed,1);state='IDLE';$('dash').classList.remove('tracking');return}
+      }
+      state='IDLE';$('dash').classList.remove('tracking');return;
+    }
+    if(mA>beamThresh||corridorMotion>beamThresh)lastMotionTime=t;
+    if(t-lastMotionTime>lostTimeout||t-armTime>maxElapsed*1000){
+      state='IDLE';$('dash').classList.remove('tracking');
+      status('Abandon — objet perdu','err');
+    }
+
+  }else if(state==='ARMED_B'){
+    /* Sortie A ? */
+    if(mA>beamThresh){
+      const elapsed=(t-armTime)/1000;
+      if(elapsed>minElapsed&&elapsed<maxElapsed){
+        const kmh=S.dist/elapsed*3.6;
+        if(kmh>0&&kmh<400){finish(kmh,elapsed,-1);state='IDLE';$('dash').classList.remove('tracking');return}
+      }
+      state='IDLE';$('dash').classList.remove('tracking');return;
+    }
+    if(mB>beamThresh||corridorMotion>beamThresh)lastMotionTime=t;
+    if(t-lastMotionTime>lostTimeout||t-armTime>maxElapsed*1000){
+      state='IDLE';$('dash').classList.remove('tracking');
+      status('Abandon — objet perdu','err');
+    }
   }
-  draw(t,blobs);
 }
 
 /* ---------- Finish ---------- */
 function finish(kmh,dt,dir){
-  lastState='finish';
   const v=conv(kmh);
   $('spd').textContent=v.toFixed(1);
   let scale;
@@ -642,13 +500,13 @@ function finish(kmh,dt,dir){
   else{scale=Math.max(20,Math.ceil(kmh/10)*10);if(kmh>0&&kmh/scale<0.6)scale=kmh/0.85}
   $('arc').setAttribute('stroke-dasharray',`${Math.min(1,kmh/scale)*169.6} 170`);
   $('dt').textContent=`Temps : ${dt.toFixed(2)} s`;
-  $('dir').textContent=dir>0?'Sens : →':'Sens : ←';
+  $('dir').textContent=dir>0?'Sens : A → B':'Sens : B → A';
   const over=S.limit>0&&kmh>S.limit;
   $('dash').classList.toggle('over',over);
   $('dash').classList.add('valid');
   $('dash').classList.remove('tracking');
   flashT=performance.now()+1200;
-  status(`✅ ${fmt(v)} · échelle 0–${Math.round(scale)} km/h`,over?'err':'ok');
+  status(`✅ ${fmt(v)} · ${dir>0?'A→B':'B→A'}`,over?'err':'ok');
   if(over){beep(440,.1,.2);setTimeout(()=>beep(440,.1,.2),150)}else beep(880,.08,.15);
   if(navigator.vibrate)navigator.vibrate(over?[120,60,120]:40);
   addStat(kmh,over);
@@ -657,20 +515,24 @@ function finish(kmh,dt,dir){
 }
 
 /* ---------- Overlay ---------- */
-function draw(t,blobs){
+function draw(t){
   const W=ov.width,H=ov.height;
   if(!W||!H)return;
   oc.clearRect(0,0,W,H);
   const ax=S.a/100*W,bx=S.b/100*W,yt=S.top/100*H,yb=S.bot/100*H;
-  const tol=TOL();
+  const xAi=Math.round(S.a/100*PW),xBi=Math.round(S.b/100*PW);
 
   if(flashT&&t>flashT){$('dash').classList.remove('valid');flashT=0}
 
-  oc.fillStyle='rgba(0,0,0,.4)';oc.fillRect(0,0,W,yt);oc.fillRect(0,yb,W,H-yb);
-  oc.fillStyle='rgba(46,230,214,0.10)';
-  oc.fillRect((A()-tol)*W,yt,tol*2*W,yb-yt);
-  oc.fillRect((B()-tol)*W,yt,tol*2*W,yb-yt);
+  /* Bandes hors détection */
+  oc.fillStyle='rgba(0,0,0,.5)';oc.fillRect(0,0,W,yt);oc.fillRect(0,yb,W,H-yb);
 
+  /* Corridor teinté */
+  oc.fillStyle='rgba(46,230,214,0.06)';
+  const cL=Math.min(ax,bx),cR=Math.max(ax,bx);
+  oc.fillRect(cL,yt,cR-cL,yb-yt);
+
+  /* Coins HUD */
   const bl=22,bo=10;oc.strokeStyle='rgba(46,230,214,.65)';oc.lineWidth=2;oc.lineCap='round';
   oc.beginPath();
   oc.moveTo(bo+bl,bo);oc.lineTo(bo,bo);oc.lineTo(bo,bo+bl);
@@ -679,79 +541,73 @@ function draw(t,blobs){
   oc.moveTo(W-bo,H-bo-bl);oc.lineTo(W-bo,H-bo);oc.lineTo(W-bo-bl,H-bo);
   oc.stroke();
 
-  const fs=Math.max(12,W/40);
-  oc.lineWidth=Math.max(2,W/300);oc.setLineDash([10,7]);
-  const activeA=tracker&&tracker.lockLine==='A';
-  const activeB=tracker&&tracker.lockLine==='B';
+  /* Barres de mouvement par colonne */
+  const colW=(cR-cL)/Math.max(1,Math.abs(xBi-xAi));
+  for(let x=Math.min(xAi,xBi);x<=Math.max(xAi,xBi);x++){
+    if(x<0||x>=PW)continue;
+    const m=colMotion[x];
+    if(m<=0)continue;
+    const barH=Math.min(40,(m/Math.max(1,(yb-yt)/PH))*4);
+    const barX=cL+((x-Math.min(xAi,xBi))/(Math.abs(xBi-xAi)||1))*(cR-cL);
+    oc.fillStyle='rgba(52,211,153,0.35)';
+    oc.fillRect(barX,yb-barH,colW+0.5,barH);
+  }
 
+  /* Faisceaux A et B */
+  const fs=Math.max(14,W/35);
+  const activeA=state==='ARMED_A';
+  const activeB=state==='ARMED_B';
+
+  oc.lineWidth=Math.max(3,W/250);oc.setLineDash([10,7]);
+
+  /* Faisceau A */
   oc.strokeStyle=activeA?'#34d399':'rgba(255,176,32,.85)';
-  oc.shadowBlur=activeA?14:5;oc.shadowColor=activeA?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
-  oc.beginPath();oc.moveTo(ax,yt);oc.lineTo(ax,yb);oc.stroke();oc.shadowBlur=0;
+  oc.shadowBlur=activeA?18:6;oc.shadowColor=activeA?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
+  oc.beginPath();oc.moveTo(ax,yt);oc.lineTo(ax,yb);oc.stroke();
+  oc.shadowBlur=0;
 
+  /* Faisceau B */
   oc.strokeStyle=activeB?'#34d399':'rgba(255,176,32,.85)';
-  oc.shadowBlur=activeB?14:5;oc.shadowColor=activeB?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
-  oc.beginPath();oc.moveTo(bx,yt);oc.lineTo(bx,yb);oc.stroke();oc.setLineDash([]);oc.shadowBlur=0;
+  oc.shadowBlur=activeB?18:6;oc.shadowColor=activeB?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
+  oc.beginPath();oc.moveTo(bx,yt);oc.lineTo(bx,yb);oc.stroke();
+  oc.setLineDash([]);oc.shadowBlur=0;
 
+  /* Étiquettes A et B */
   oc.font=`700 ${fs}px ui-monospace,monospace`;
-  oc.fillStyle=activeA?'#34d399':'#ffb020';oc.fillText('A',ax+6,yt+fs+4);
-  oc.fillStyle=activeB?'#34d399':'#ffb020';oc.fillText('B',bx+6,yt+fs+4);
+  oc.fillStyle=activeA?'#34d399':'#ffb020';oc.fillText('A',ax+8,yt+fs+6);
+  oc.fillStyle=activeB?'#34d399':'#ffb020';oc.fillText('B',bx+8,yt+fs+6);
 
-  if(blobs&&blobs.length){
-    for(const b of blobs){
-      if(tracker && Math.abs(b.cx-tracker.cx)<0.02 && Math.abs(b.cy-tracker.cy)<0.02) continue;
-      oc.strokeStyle='rgba(122,138,166,.18)';oc.lineWidth=1;
-      oc.strokeRect(b.x1*W,b.y1*H,b.w*W,b.h*H);
-    }
+  /* Centroïde */
+  if(corridorMotion>5){
+    const cx=(centroidX/PW)*W;
+    const cy=(yt+yb)/2;
+    oc.beginPath();oc.arc(cx,cy,14,0,7);oc.fillStyle='rgba(52,211,153,.2)';oc.fill();
+    oc.beginPath();oc.arc(cx,cy,8,0,7);oc.fillStyle='rgba(52,211,153,.6)';oc.fill();
+    oc.beginPath();oc.arc(cx,cy,3,0,7);oc.fillStyle='#fff';oc.fill();
+    /* Ligne verticale de visée */
+    oc.strokeStyle='rgba(52,211,153,.4)';oc.lineWidth=1;oc.setLineDash([3,3]);
+    oc.beginPath();oc.moveTo(cx,yt);oc.lineTo(cx,yb);oc.stroke();oc.setLineDash([]);
   }
 
-  if(tracker){
-    const tx=tracker.cx*W,ty=tracker.cy*H;
-    const bx1=tracker.x1*W,by1=tracker.y1*H,bw=tracker.w*W,bh=tracker.h*H;
-    oc.strokeStyle='#34d399';oc.lineWidth=2.5;
-    oc.shadowBlur=12;oc.shadowColor='rgba(52,211,153,.8)';
-    oc.strokeRect(bx1,by1,bw,bh);oc.shadowBlur=0;
-    const corner=Math.min(bw,bh)*0.3;
-    oc.lineWidth=4;oc.strokeStyle='#34d399';
-    oc.beginPath();
-    oc.moveTo(bx1,by1+corner);oc.lineTo(bx1,by1);oc.lineTo(bx1+corner,by1);
-    oc.moveTo(bx1+bw-corner,by1);oc.lineTo(bx1+bw,by1);oc.lineTo(bx1+bw,by1+corner);
-    oc.moveTo(bx1,by1+bh-corner);oc.lineTo(bx1,by1+bh);oc.lineTo(bx1+corner,by1+bh);
-    oc.moveTo(bx1+bw-corner,by1+bh);oc.lineTo(bx1+bw,by1+bh);oc.lineTo(bx1+bw,by1+bh-corner);
-    oc.stroke();
-    oc.beginPath();oc.arc(tx,ty,14,0,7);oc.fillStyle='rgba(52,211,153,.15)';oc.fill();
-    oc.beginPath();oc.arc(tx,ty,8,0,7);oc.fillStyle='rgba(52,211,153,.4)';oc.fill();
-    oc.beginPath();oc.arc(tx,ty,3,0,7);oc.fillStyle='#fff';oc.fill();
-    oc.strokeStyle='#34d399';oc.lineWidth=2;
-    oc.beginPath();
-    oc.moveTo(tx-18,ty);oc.lineTo(tx-10,ty);
-    oc.moveTo(tx+10,ty);oc.lineTo(tx+18,ty);
-    oc.moveTo(tx,ty-18);oc.lineTo(tx,ty-10);
-    oc.moveTo(tx,ty+10);oc.lineTo(tx,ty+18);
-    oc.stroke();
-    if(Math.abs(tracker.kfX.vel)>0.005){
-      const inst=Math.abs(tracker.kfX.vel)*S.dist*3.6;
-      oc.font=`600 ${fs*.7}px ui-monospace,monospace`;
-      oc.fillStyle='#34d399';
-      oc.fillText(`≈ ${inst.toFixed(1)} km/h`,tx+22,ty-14);
-    }
+  /* Vitesse live pendant suivi */
+  if(state!=='IDLE'&&liveSpeed>0.1){
+    oc.font=`700 ${fs*0.9}px ui-monospace,monospace`;
+    oc.fillStyle='#34d399';
+    oc.fillText(`≈ ${liveSpeed.toFixed(1)} km/h`,ax+18,yt+fs*2.6);
+    const prog=Math.max(0,Math.min(1,Math.abs(centroidX-xAi)/Math.abs(xBi-xAi)));
+    oc.font=`600 ${fs*0.7}px ui-monospace,monospace`;
+    oc.fillStyle='rgba(52,211,153,.7)';
+    oc.fillText(`${Math.round(prog*100)}%`,ax+18,yt+fs*3.8);
   }
 
+  /* Zone plaque */
   if(S.zone){
     const zx=S.px/100*W,zy=S.py/100*H,zw=S.pw/100*W,zh=S.ph/100*H;
     oc.strokeStyle='rgba(52,211,153,.9)';oc.lineWidth=2;oc.setLineDash([5,4]);
     oc.strokeRect(zx,zy,zw,zh);oc.setLineDash([]);
-    oc.fillStyle='rgba(52,211,153,.15)';oc.fillRect(zx,zy,zw,zh);
-    oc.fillStyle='#34d399';oc.font=`600 ${fs*.75}px system-ui`;
+    oc.fillStyle='rgba(52,211,153,.12)';oc.fillRect(zx,zy,zw,zh);
+    oc.fillStyle='#34d399';oc.font=`600 ${fs*.7}px system-ui`;
     oc.fillText('PLAQUE',zx+4,zy-4);
-  }
-
-  if(trail.length>1){
-    for(let i=1;i<trail.length;i++){
-      const a=trail[i-1],b=trail[i],alpha=i/trail.length;
-      oc.strokeStyle=`rgba(52,211,153,${alpha*0.7})`;
-      oc.lineWidth=1+alpha*3;
-      oc.beginPath();oc.moveTo(a.x*W,a.y*H);oc.lineTo(b.x*W,b.y*H);oc.stroke();
-    }
   }
 }
 
@@ -848,7 +704,7 @@ function showPlate(e){
   $('plFull').src=e.img;$('bDl').href=e.img;
   if(e.crop)$('plCrop').src=e.crop;
   $('plTxt').textContent=e.busy?'Analyse…':e.err?'Erreur':(e.plate||'—');
-  $('plMeta').textContent=e.err||(e.busy?'':`Confiance : ${Math.round(e.conf)} % · ${e.ok?'format valide':'incertain'}`);
+  $('plMeta').textContent=e.err||(e.busy?'':`Confiance : ${Math.round(e.conf)} % · ${e.ok?'valide':'incertain'}`);
 }
 $('bRe').onclick=()=>cur&&runOcr(cur);
 $('plTxt').addEventListener('blur',()=>{
@@ -860,8 +716,9 @@ $('plTxt').addEventListener('blur',()=>{
 /* ---------- Actions ---------- */
 $('bFlip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCam()};
 $('bReset').onclick=()=>{
-  bgMean=null;bgVar=null;heatBuf=null;warmupFrames=0;
-  resetTracker();hist.length=0;renderHist();
+  bgMean=null;bgVar=null;warmupFrames=0;state='IDLE';
+  centroidHistory=[];hist.length=0;renderHist();
+  $('dash').classList.remove('tracking','valid','over');
   $('spd').textContent='--';$('plate').textContent='-- --';
   $('dt').textContent='Temps : --';$('dir').textContent='Sens : --';
   $('arc').setAttribute('stroke-dasharray','0 170');flashT=0;
@@ -882,4 +739,4 @@ startLoop();
 })();
 </script>
 </body>
-  </html>
+</html>
