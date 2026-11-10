@@ -43,7 +43,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 .meta{font-size:11px;color:var(--mu);display:flex;justify-content:space-between}
 
 .ctl{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 12px 8px}
-.btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;background:var(--pn);border:1px solid var(--bd);border-radius:12px;color:var(--tx);font:600 11px system-ui;cursor:pointer;transition:all .15s}
+.btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;background:var(--pn);border:1px solid var(--bd);border-radius:12px;color:var(--tx);font:600 11px system-ui;cursor:pointer;transition:all .15s;text-decoration:none}
 .btn svg{width:20px;height:20px}
 .btn:active{transform:scale(.95);background:rgba(46,230,214,.1)}
 .btn.main{background:linear-gradient(135deg,rgba(46,230,214,.9),rgba(46,230,214,.7));color:#04211f;border-color:var(--cy)}
@@ -80,7 +80,7 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 .sw{display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .pimg{width:100%;max-height:30vh;object-fit:contain;background:#000;border-radius:8px;border:1px solid var(--bd)}
-.big{text-align:center;font:800 26px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--cy);padding:12px;background:var(--bg);border-radius:10px;word-break:break-all;outline:none;border:1px solid transparent}
+.big{text-align:center;font:800 26px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--cy);padding:12px;background:var(--bg);border-radius:10px;word-break:break-all;outline:none;border:1px solid transparent;user-select:text;-webkit-user-select:text}
 .big:focus{border-color:var(--cy)}
 .edit-hint{font-size:10px;color:var(--mu);text-align:center;margin-top:-6px;font-style:italic}
 </style>
@@ -226,7 +226,7 @@ document.addEventListener('pointerdown',ensureAudio,{once:true,passive:true});
 })();
 
 /* ---------- Caméra ---------- */
-let facing='environment',bg=null,frames=0,fpsT=performance.now(),flashT=0;
+let facing='environment',bg=null,frames=0,fpsT=performance.now();
 function sync(){
   const v=video.getBoundingClientRect(),s=stage.getBoundingClientRect();
   if(!v.width)return;
@@ -252,6 +252,9 @@ function tick(now){try{process(now)}catch(e){console.error(e)}sched()}
    IDLE ──[objet touche A]──► ARMED_A ──[objet franchit B]──► FINISH
         └─[objet touche B]──► ARMED_B ──[objet franchit A]──► FINISH
 
+   Le chrono démarre au franchissement de la ligne de départ
+   (interpolé), et s'arrête au franchissement de la ligne d'arrivée.
+
    Annulation si :
    - objet perdu > 2 s
    - objet recule
@@ -259,7 +262,7 @@ function tick(now){try{process(now)}catch(e){console.error(e)}sched()}
    ================================================================ */
 let state = 'IDLE';       // 'IDLE' | 'ARMED_A' | 'ARMED_B'
 let armTime = 0;          // ms — moment du déclenchement
-let armX = 0;             // position X au déclenchement
+let tStart = null;        // ms — franchissement de la ligne de départ
 let lastX = null;         // dernière position connue du centroïde
 let lastT = 0;
 let lastSeenT = 0;        // dernière frame où un mouvement a été vu
@@ -270,10 +273,15 @@ const A = () => S.a/100;
 const B = () => S.b/100;
 const TOL = () => S.tol/100;
 
-function reset(){
-  state='IDLE'; armTime=0; armX=0;
+// Remet à zéro uniquement la logique (sans toucher à l'affichage du résultat)
+function resetState(){
+  state='IDLE'; armTime=0; tStart=null;
   lastX=null; lastT=0; lastSeenT=0;
   trail=[];
+}
+// Remise à zéro complète (logique + affichage)
+function reset(){
+  resetState();
   $('dash').classList.remove('armed','valid','over');
   $('dt').textContent='Temps : --';
   $('dir').textContent='Sens : --';
@@ -331,7 +339,7 @@ function process(t){
   // --- Logique de la machine à états ---
   updateState(t, cx, cy, hasMotion);
 
-  draw(t, hasMotion ? {cx,cy,minX/PW,maxX/PW,minY/PH,maxY/PH,c} : null);
+  draw(t, hasMotion ? {cx,cy,minX:minX/PW,maxX:maxX/PW,minY:minY/PH,maxY:maxY/PH,c} : null);
 }
 
 function updateState(t, cx, cy, hasMotion){
@@ -340,16 +348,18 @@ function updateState(t, cx, cy, hasMotion){
   // === IDLE : on attend qu'un objet touche A ou B ===
   if(state==='IDLE'){
     if(!hasMotion) return;
-    if(t - flashTimer < 500) return; // cooldown après un finish
+    if(t < flashTimer) return; // cooldown après un finish
 
     // Touche A ?
     if(Math.abs(cx - a) <= tol){
       state='ARMED_A';
-      armTime=t; armX=cx;
-      lastX=cx; lastT=t;
+      armTime=t;
+      tStart = (cx >= a) ? t : null; // déjà au-delà de A → chrono immédiat
+      lastX=cx; lastT=t; lastSeenT=t;
       trail=[{x:cx,y:cy,t}];
+      $('dash').classList.remove('valid','over');
       $('dash').classList.add('armed');
-      status(`⏺ Entrée A détectée — attente de B…`,'arm');
+      status('⏺ Entrée A détectée — attente de B…','arm');
       beep(660,.05,.1);
       return;
     }
@@ -357,11 +367,13 @@ function updateState(t, cx, cy, hasMotion){
     // Touche B ?
     if(Math.abs(cx - b) <= tol){
       state='ARMED_B';
-      armTime=t; armX=cx;
-      lastX=cx; lastT=t;
+      armTime=t;
+      tStart = (cx <= b) ? t : null;
+      lastX=cx; lastT=t; lastSeenT=t;
       trail=[{x:cx,y:cy,t}];
+      $('dash').classList.remove('valid','over');
       $('dash').classList.add('armed');
-      status(`⏺ Entrée B détectée — attente de A…`,'arm');
+      status('⏺ Entrée B détectée — attente de A…','arm');
       beep(660,.05,.1);
       return;
     }
@@ -372,7 +384,6 @@ function updateState(t, cx, cy, hasMotion){
   if(state==='ARMED_A' || state==='ARMED_B'){
     // Perte de vue prolongée → annulation
     if(t - lastSeenT > 2000){
-      const was=state;
       reset();
       status('Objet perdu — mesure annulée','err');
       return;
@@ -390,10 +401,7 @@ function updateState(t, cx, cy, hasMotion){
     // Vérif direction : ne pas reculer
     if(lastX !== null){
       const dx = cx - lastX;
-      // Pour ARMED_A, on doit avancer vers B (dx > 0 globalement)
-      // Pour ARMED_B, on doit avancer vers A (dx < 0)
       const expectedSign = state==='ARMED_A' ? +1 : -1;
-      // Si on va clairement dans le sens opposé, on annule
       if(dx * expectedSign < -0.02 && (t - armTime) > 300){
         reset();
         status('Demi-tour — mesure annulée','err');
@@ -401,17 +409,22 @@ function updateState(t, cx, cy, hasMotion){
       }
     }
 
-    // Interpolation pour trouver l'instant exact du franchissement
+    const startLine  = state==='ARMED_A' ? a : b;
     const targetLine = state==='ARMED_A' ? b : a;
-    if(lastX !== null && ((lastX - targetLine) * (cx - targetLine) <= 0)){
-      // Franchissement ! Interpolation linéaire
-      const frac = (cx !== lastX) ? (targetLine - lastX) / (cx - lastX) : 0.5;
-      const tCross = lastT + frac * (t - lastT);
-      const dt = (tCross - armTime) / 1000;
 
-      if(dt > 0.03 && dt < 8){
-        const kmh = S.dist / dt * 3.6;
-        finish(kmh, dt, state==='ARMED_A' ? +1 : -1, t);
+    // Franchissement de la ligne de départ → début du chrono
+    if(tStart===null && lastX!==null && (lastX-startLine)*(cx-startLine)<=0){
+      const f = cx!==lastX ? (startLine-lastX)/(cx-lastX) : .5;
+      tStart = lastT + f*(t-lastT);
+    }
+
+    // Franchissement de la ligne d'arrivée
+    if(tStart!==null && lastX!==null && (lastX-targetLine)*(cx-targetLine)<=0){
+      const f = cx!==lastX ? (targetLine-lastX)/(cx-lastX) : .5;
+      const tCross = lastT + f*(t-lastT);
+      const dt = (tCross - tStart)/1000;
+      if(dt>0.03 && dt<8){
+        finish(S.dist/dt*3.6, dt, state==='ARMED_A'?+1:-1, t);
       }
       return;
     }
@@ -442,7 +455,7 @@ function finish(kmh, dt, dir, t){
   $('dash').classList.remove('armed');
   $('dash').classList.toggle('over', over);
   $('dash').classList.add('valid');
-  flashTimer = t + 1500;
+  flashTimer = t + 500;
   setTimeout(()=>{
     $('dash').classList.remove('valid');
     if(!over) $('dash').classList.remove('over');
@@ -458,7 +471,7 @@ function finish(kmh, dt, dir, t){
   addHist(e);
   if(S.auto) runOcr(e);
 
-  reset();
+  resetState(); // on garde l'affichage du résultat
 }
 
 /* ---------- Overlay ---------- */
@@ -662,6 +675,17 @@ $('plTxt').addEventListener('blur',()=>{
   if(v&&v!==cur.plate){cur.plate=v;$('plate').textContent=v;renderHist()}
 });
 
+/* ---------- Export CSV ---------- */
+$('bCsv').onclick=()=>{
+  if(!hist.length){status('Rien à exporter');return}
+  const rows=['heure;vitesse_kmh;depassement;plaque'];
+  hist.forEach(e=>rows.push([e.time.toISOString(),e.kmh==null?'':e.kmh.toFixed(1),e.over?'oui':'non',e.plate||''].join(';')));
+  const a=document.createElement('a');
+  a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));
+  a.download='radar.csv';a.click();
+  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
+};
+
 /* ---------- Actions ---------- */
 $('bFlip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCam()};
 $('bReset').onclick=()=>{
@@ -678,4 +702,4 @@ startCam().then(sched);
 })();
 </script>
 </body>
-                                                                  </html>
+</html>
