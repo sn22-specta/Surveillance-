@@ -3,7 +3,7 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>RADAR TRACKER v7.1</title>
+<title>RADAR TRACKER</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
 <style>
 :root{--bg:#080c14;--pn:#111a2b;--bd:#22314d;--tx:#e5ecf6;--mu:#7a8aa6;--cy:#2ee6d6;--am:#ffb020;--rd:#ff4d5e;--gn:#34d399;--bl:#3b82f6}
@@ -22,6 +22,11 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 .stage{flex:1;min-height:0;position:relative;background:#000;display:flex;align-items:center;justify-content:center;overflow:hidden}
 #video{max-width:100%;max-height:100%}
 #ov{position:absolute;pointer-events:none}
+#camError{position:absolute;inset:0;display:none;flex-direction:column;align-items:center;justify-content:center;gap:14px;background:rgba(8,12,20,.95);padding:24px;text-align:center;z-index:5}
+#camError.show{display:flex}
+#camError svg{color:var(--rd);width:44px;height:44px}
+#camError p{font-size:13px;color:var(--mu);max-width:300px;line-height:1.5}
+#camError button{background:var(--cy);color:#04211f;border:none;padding:11px 22px;border-radius:10px;font-weight:700;font-size:14px;cursor:pointer}
 
 .dash{display:grid;grid-template-columns:148px 1fr;gap:14px;align-items:center;margin:10px 12px 6px;padding:12px 14px;background:var(--pn);border:1px solid var(--bd);border-radius:16px;transition:all .3s}
 .dash.over{border-color:var(--rd);box-shadow:0 0 0 1px var(--rd),0 0 24px rgba(255,77,94,.35);animation:warn 1s infinite}
@@ -65,7 +70,8 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 .card.ov b{color:var(--rd)}
 .card span{font-size:10px;color:var(--mu);letter-spacing:.5px}
 
-#st{padding:2px 14px max(10px,env(safe-area-inset-bottom));font-size:11px;color:var(--mu);font-weight:500;text-align:center}
+#st{padding:2px 14px max(10px,env(safe-area-inset-bottom));font-size:11px;color:var(--mu);font-weight:500;text-align:center;line-height:1.4}
+#diag{font-size:10px;color:#4a5a75;font-family:ui-monospace,monospace;padding:0 14px 6px;text-align:center}
 
 .sheet{position:fixed;inset:0;z-index:50;background:rgba(4,7,12,.86);backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center}
 .sheet.open{display:flex}
@@ -110,7 +116,17 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
   <div class="fps"><span class="dot"></span><span id="fps" class="num">-- fps</span></div>
 </header>
 
-<main class="stage" id="stage"><video id="video" autoplay playsinline muted></video><canvas id="ov"></canvas></main>
+<main class="stage" id="stage">
+  <video id="video" autoplay playsinline muted></video>
+  <canvas id="ov"></canvas>
+  <div id="camError">
+    <svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round">
+      <circle cx="12" cy="12" r="10"/><line x1="12" y1="8" x2="12" y2="12"/><line x1="12" y1="16" x2="12.01" y2="16"/>
+    </svg>
+    <p id="camErrMsg">La caméra n'est pas accessible.</p>
+    <button id="btnRetry">Réessayer</button>
+  </div>
+</main>
 
 <section class="dash" id="dash">
   <div class="gauge">
@@ -143,6 +159,7 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 </section>
 <div id="hist"><div class="empty">Aucun passage enregistré</div></div>
 <div id="st">Initialisation…</div>
+<div id="diag" class="num">—</div>
 
 <div class="sheet" id="shSet"><div class="panel">
   <div class="ph">Réglages<button class="x" data-close>✕</button></div>
@@ -188,8 +205,8 @@ const F=[
  ['px','Position X','%',0,95,1],['py','Position Y','%',0,95,1],['pw','Largeur','%',5,100,1],['ph','Hauteur','%',3,100,1]
 ];
 let S={...D};
-try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v71')||'{}'))}catch(e){}
-const save=()=>{try{localStorage.setItem('radar.v71',JSON.stringify(S))}catch(e){}};
+try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v72')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('radar.v72',JSON.stringify(S))}catch(e){}};
 
 function buildFields(){
   const box=$('fields');box.innerHTML='';
@@ -211,6 +228,7 @@ document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.s
 $('bSet').onclick=()=>{$('shSet').classList.add('open');ensureAudio()};
 
 const status=(m,c)=>{const e=$('st');e.textContent=m;e.style.color=c==='ok'?'var(--gn)':c==='err'?'var(--rd)':c==='track'?'var(--gn)':'var(--mu)'};
+const diag=(m)=>{$('diag').textContent=m};
 const conv=k=>S.unit==='mph'?k*0.621371:k;
 const fmt=v=>`${v.toFixed(1)} ${S.unit==='mph'?'mph':'km/h'}`;
 
@@ -247,7 +265,8 @@ function updateStats(){
 }
 
 /* ---------- Caméra ---------- */
-let facing='environment',bg=null,frames=0,fpsT=performance.now(),flashT=0,currentFps=30;
+let facing='environment',bg=null,frames=0,fpsT=performance.now(),flashT=0,currentFps=0,lastBlobs=0,lastState='idle';
+
 function sync(){
   const v=video.getBoundingClientRect(),s=stage.getBoundingClientRect();
   if(!v.width)return;
@@ -255,17 +274,57 @@ function sync(){
   if(ov.width!==w||ov.height!==h){ov.width=w;ov.height=h;bg=null}
   ov.style.cssText=`width:${w}px;height:${h}px;left:${v.left-s.left}px;top:${v.top-s.top}px`;
 }
+
+function showCamError(msg){
+  $('camErrMsg').textContent=msg;
+  $('camError').classList.add('show');
+}
+function hideCamError(){ $('camError').classList.remove('show'); }
+
 async function startCam(){
   try{
+    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
+      showCamError('Votre navigateur ne supporte pas getUserMedia. Utilisez Chrome/Firefox récent en HTTPS.');
+      status('getUserMedia indisponible','err');
+      return;
+    }
     if(video.srcObject)video.srcObject.getTracks().forEach(t=>t.stop());
-    video.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}},audio:false});
+    const stream=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:facing,width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}},
+      audio:false
+    });
+    video.srcObject=stream;
     await video.play().catch(()=>{});
+    hideCamError();
     bg=null;resetTracker();
-    status('Caméra prête — faites entrer un objet en A ou B');
-  }catch(e){status('Caméra inaccessible : '+e.message,'err')}
+    status('Caméra prête — faites entrer un objet en A ou B','ok');
+    console.log('[RADAR] Camera OK:',video.videoWidth,'x',video.videoHeight);
+  }catch(e){
+    const msg=e.name==='NotAllowedError'
+      ? 'Permission refusée. Autorisez la caméra dans les paramètres du navigateur.'
+      : e.name==='NotFoundError'
+      ? 'Aucune caméra détectée.'
+      : 'Erreur : '+e.message;
+    showCamError(msg);
+    status('Caméra inaccessible','err');
+    console.error('[RADAR] Camera error:',e);
+  }
 }
-const sched=()=>video.requestVideoFrameCallback?video.requestVideoFrameCallback(tick):requestAnimationFrame(sched);
-function tick(now){try{process(now)}catch(e){console.error(e)}sched()}
+
+/* ---------- BOUCLE PRINCIPALE (setInterval — infaillible) ---------- */
+let loopRunning=false;
+function startLoop(){
+  if(loopRunning)return;
+  loopRunning=true;
+  setInterval(()=>{
+    try{
+      process(performance.now());
+    }catch(e){
+      console.error('[RADAR] process error:',e);
+      diag('Erreur : '+e.message);
+    }
+  },33);
+}
 
 /* ============================================================
    DÉTECTION DE BLOBS
@@ -303,7 +362,6 @@ function detectBlobs(y0,y1){
       if(count>=S.area){
         const w=(maxX-minX+1)/PW;
         const h=(maxY-minY+1)/PH;
-        // ✅ Filtre assoupli : w<0.95 au lieu de 0.85
         if(w<0.95&&h>0.015){
           blobs.push({
             cx:((minX+maxX)/2)/PW, cy:((minY+maxY)/2)/PH,
@@ -320,52 +378,52 @@ function detectBlobs(y0,y1){
 }
 
 /* ============================================================
-   TRACKER — suivi de l'objet de A vers B (ou inverse)
+   TRACKER
    ============================================================ */
 let tracker=null, lastFinishT=0, trail=[];
 const A=()=>S.a/100;
 const B=()=>S.b/100;
-const TOL=()=>S.entryTol/100;       // ✅ tolérance configurable (défaut 12%)
-const MATCH_BASE=0.25;              // base du rayon de matching
-const MATCH_PER_SEC=0.6;            // ✅ +60% par seconde d'écart
-const LOST_TIMEOUT=2500;            // ✅ 2.5s (au lieu de 1.2s)
-const TRACK_TIMEOUT=12000;          // ✅ 12s (au lieu de 8s)
+const TOL=()=>S.entryTol/100;
+const MATCH_BASE=0.25;
+const MATCH_PER_SEC=0.6;
+const LOST_TIMEOUT=2500;
+const TRACK_TIMEOUT=12000;
 
 function resetTracker(){
   tracker=null; trail=[];
   $('dash').classList.remove('tracking','valid','over');
+  lastState='idle';
 }
 
-// ✅ Détection d'entrée : bbox OU centre proche de la ligne
 function blobNearLine(b,lineX,tol){
-  const overlap = (b.x1 <= lineX+tol) && (b.x2 >= lineX-tol);
-  const centerNear = Math.abs(b.cx - lineX) <= tol;
-  return overlap || centerNear;
+  const overlap=(b.x1<=lineX+tol)&&(b.x2>=lineX-tol);
+  const centerNear=Math.abs(b.cx-lineX)<=tol;
+  return overlap||centerNear;
 }
 
 function updateTracker(blobs,t){
-  /* ---------- PHASE 1 : chercher une entrée ---------- */
   if(!tracker){
     if(t-lastFinishT<500)return;
     let bestB=null,bestLine=null,bestDist=Infinity;
     const tol=TOL();
     for(const b of blobs){
-      const dA=Math.abs(b.cx-A()), dB=Math.abs(b.cx-B());
+      const dA=Math.abs(b.cx-A()),dB=Math.abs(b.cx-B());
       if(blobNearLine(b,A(),tol)&&dA<bestDist){bestB=b;bestLine='A';bestDist=dA}
       if(blobNearLine(b,B(),tol)&&dB<bestDist){bestB=b;bestLine='B';bestDist=dB}
     }
     if(bestB){
       tracker={
-        cx:bestB.cx, cy:bestB.cy,
-        x1:bestB.x1, x2:bestB.x2, y1:bestB.y1, y2:bestB.y2,
-        w:bestB.w, h:bestB.h, area:bestB.area,
-        vx:0, vy:0,
-        prevCx:bestB.cx, prevT:t,
-        firstSeen:t, lastSeenT:t, lastT:t,
-        lockTime:t, lockLine:bestLine,
+        cx:bestB.cx,cy:bestB.cy,
+        x1:bestB.x1,x2:bestB.x2,y1:bestB.y1,y2:bestB.y2,
+        w:bestB.w,h:bestB.h,area:bestB.area,
+        vx:0,vy:0,
+        prevCx:bestB.cx,prevT:t,
+        firstSeen:t,lastSeenT:t,lastT:t,
+        lockTime:t,lockLine:bestLine,
         missed:0
       };
       trail=[{x:bestB.cx,y:bestB.cy,t}];
+      lastState='tracking';
       $('dash').classList.add('tracking');
       status(`🔒 Entrée ${bestLine} détectée — en attente de ${bestLine==='A'?'B':'A'}…`,'track');
       beep(660,.05,.1);
@@ -373,61 +431,55 @@ function updateTracker(blobs,t){
     return;
   }
 
-  /* ---------- PHASE 2 : suivre le blob ---------- */
   const dt=Math.max(0.001,(t-tracker.lastT)/1000);
   const predX=tracker.cx+tracker.vx*dt;
   const predY=tracker.cy+tracker.vy*dt;
-  // ✅ Rayon de matching ADAPTATIF selon le temps écoulé
-  const matchMax=MATCH_BASE + dt*MATCH_PER_SEC;
+  const matchMax=MATCH_BASE+dt*MATCH_PER_SEC;
 
-  let best=null, bestD=Infinity;
+  let best=null,bestD=Infinity;
   for(const b of blobs){
     const d=Math.hypot(b.cx-predX,b.cy-predY);
     if(d<bestD){bestD=d;best=b}
   }
 
-  if(best && bestD<matchMax){
-    // ✅ Mise à jour réussie : on note lastSeenT
+  if(best&&bestD<matchMax){
     const nvx=(best.cx-tracker.cx)/dt;
     const nvy=(best.cy-tracker.cy)/dt;
     tracker.vx=tracker.vx*0.4+nvx*0.6;
     tracker.vy=tracker.vy*0.4+nvy*0.6;
-    tracker.prevCx=tracker.cx; tracker.prevT=tracker.lastT;
-    tracker.cx=best.cx; tracker.cy=best.cy;
-    tracker.x1=best.x1; tracker.x2=best.x2;
-    tracker.y1=best.y1; tracker.y2=best.y2;
-    tracker.w=best.w; tracker.h=best.h; tracker.area=best.area;
-    tracker.lastT=t; tracker.lastSeenT=t;
+    tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
+    tracker.cx=best.cx;tracker.cy=best.cy;
+    tracker.x1=best.x1;tracker.x2=best.x2;
+    tracker.y1=best.y1;tracker.y2=best.y2;
+    tracker.w=best.w;tracker.h=best.h;tracker.area=best.area;
+    tracker.lastT=t;tracker.lastSeenT=t;
     tracker.missed=0;
   }else{
-    // Frame manquée : extrapolation
     tracker.missed++;
-    tracker.prevCx=tracker.cx; tracker.prevT=tracker.lastT;
-    tracker.cx=predX; tracker.cy=predY;
+    tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
+    tracker.cx=predX;tracker.cy=predY;
     tracker.lastT=t;
-    // ✅ BUG FIX : utiliser lastSeenT et non firstSeen
-    if(tracker.missed>6 || t-tracker.lastSeenT>LOST_TIMEOUT){
+    if(tracker.missed>6||t-tracker.lastSeenT>LOST_TIMEOUT){
       resetTracker();
       status('Suivi perdu — mesure annulée','err');
       return;
     }
   }
 
-  /* ---------- PHASE 3 : détection de la sortie ---------- */
   trail.push({x:tracker.cx,y:tracker.cy,t});
-  while(trail.length && t-trail[0].t>2000) trail.shift();
+  while(trail.length&&t-trail[0].t>2000)trail.shift();
 
-  const exitLine = tracker.lockLine==='A' ? B() : A();
-  const px=tracker.prevCx, cx=tracker.cx;
+  const exitLine=tracker.lockLine==='A'?B():A();
+  const px=tracker.prevCx,cx=tracker.cx;
 
   if((px-exitLine)*(cx-exitLine)<0){
     const dtFrame=tracker.lastT-tracker.prevT;
-    const frac=Math.abs(cx-px)>1e-6 ? (exitLine-px)/(cx-px) : 0.5;
+    const frac=Math.abs(cx-px)>1e-6?(exitLine-px)/(cx-px):0.5;
     const tExit=tracker.prevT+frac*dtFrame;
     const dtTotal=(tExit-tracker.lockTime)/1000;
-    if(dtTotal>0.03 && dtTotal<TRACK_TIMEOUT/1000){
+    if(dtTotal>0.03&&dtTotal<TRACK_TIMEOUT/1000){
       const kmh=S.dist/dtTotal*3.6;
-      if(kmh>0 && kmh<400){
+      if(kmh>0&&kmh<400){
         finish(kmh,dtTotal,tracker.lockLine==='A'?1:-1);
       }
     }
@@ -442,18 +494,34 @@ function updateTracker(blobs,t){
   }
 }
 
-/* ---------- Process principal ---------- */
+/* ---------- Process ---------- */
 function process(t){
-  if(video.readyState<2||!video.videoWidth)return;
-  sync();
-  if(++frames>=20){currentFps=Math.round(frames*1000/(t-fpsT));$('fps').textContent=currentFps+' fps';frames=0;fpsT=t}
+  // Mise à jour FPS indépendante
+  if(++frames>=10){
+    currentFps=Math.round(frames*1000/(t-fpsT));
+    if(currentFps>0 && currentFps<999){
+      $('fps').textContent=currentFps+' fps';
+    }
+    frames=0;fpsT=t;
+  }
 
+  if(!video.videoWidth){
+    diag(`En attente de la caméra… (readyState ${video.readyState})`);
+    return;
+  }
+  if(video.readyState<2){
+    diag(`Caméra en démarrage… (readyState ${video.readyState})`);
+    return;
+  }
+
+  sync();
   pc.drawImage(video,0,0,PW,PH);
   const d=pc.getImageData(0,0,PW,PH).data,n=PW*PH;
 
   if(!bg||bg.length!==n){
     bg=new Float32Array(n);
     for(let i=0;i<n;i++)bg[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
+    diag(`Init background… ${video.videoWidth}×${video.videoHeight}`);
     draw(t);return;
   }
 
@@ -478,11 +546,15 @@ function process(t){
   }
 
   const blobs=detectBlobs(y0,y1);
+  lastBlobs=blobs.length;
   updateTracker(blobs,t);
 
-  if(!tracker && t-lastFinishT>800){
-    if(blobs.length){
-      status(`${blobs.length} objet(s) — visez A ou B`);
+  // Diagnostics temps réel
+  diag(`FPS ${currentFps} · Blobs ${blobs.length} · Pixels ${totalMoving} · ${lastState==='idle'?'IDLE':lastState==='tracking'?'SUIVI':lastState}`);
+
+  if(!tracker&&t-lastFinishT>800){
+    if(blobs.length>0){
+      status(`${blobs.length} objet(s) détecté(s) — visez A ou B`);
     }else{
       status('Prêt — aucun mouvement');
     }
@@ -493,6 +565,7 @@ function process(t){
 
 /* ---------- Finish ---------- */
 function finish(kmh,dt,dir){
+  lastState='finish';
   const v=conv(kmh);
   $('spd').textContent=v.toFixed(1);
   let scale;
@@ -507,7 +580,7 @@ function finish(kmh,dt,dir){
   $('dash').classList.add('valid');
   $('dash').classList.remove('tracking');
   flashT=performance.now()+1200;
-  status(`${fmt(v)} · échelle 0–${Math.round(scale)} km/h`,over?'err':'ok');
+  status(`✅ ${fmt(v)} · échelle 0–${Math.round(scale)} km/h`,over?'err':'ok');
   if(over){beep(440,.1,.2);setTimeout(()=>beep(440,.1,.2),150)}else beep(880,.08,.15);
   if(navigator.vibrate)navigator.vibrate(over?[120,60,120]:40);
   addStat(kmh,over);
@@ -517,15 +590,16 @@ function finish(kmh,dt,dir){
 
 /* ---------- Overlay ---------- */
 function draw(t,blobs){
-  const W=ov.width,H=ov.height;oc.clearRect(0,0,W,H);
+  const W=ov.width,H=ov.height;
+  if(!W||!H)return;
+  oc.clearRect(0,0,W,H);
   const ax=S.a/100*W,bx=S.b/100*W,yt=S.top/100*H,yb=S.bot/100*H;
   const tol=TOL();
 
-  if(flashT && t>flashT){ $('dash').classList.remove('valid'); flashT=0; }
+  if(flashT&&t>flashT){$('dash').classList.remove('valid');flashT=0;}
 
   oc.fillStyle='rgba(0,0,0,.4)';oc.fillRect(0,0,W,yt);oc.fillRect(0,yb,W,H-yb);
 
-  // ✅ Zone d'entrée VISIBLE (large, cyan)
   oc.fillStyle='rgba(46,230,214,0.10)';
   oc.fillRect((A()-tol)*W,yt,tol*2*W,yb-yt);
   oc.fillRect((B()-tol)*W,yt,tol*2*W,yb-yt);
@@ -564,8 +638,8 @@ function draw(t,blobs){
   }
 
   if(tracker){
-    const tx=tracker.cx*W, ty=tracker.cy*H;
-    const bx1=tracker.x1*W, by1=tracker.y1*H, bw=tracker.w*W, bh=tracker.h*H;
+    const tx=tracker.cx*W,ty=tracker.cy*H;
+    const bx1=tracker.x1*W,by1=tracker.y1*H,bw=tracker.w*W,bh=tracker.h*H;
     oc.strokeStyle='#34d399';oc.lineWidth=2.5;
     oc.shadowBlur=10;oc.shadowColor='rgba(52,211,153,.7)';
     oc.strokeRect(bx1,by1,bw,bh);oc.shadowBlur=0;
@@ -614,7 +688,7 @@ function draw(t,blobs){
   }
 }
 
-/* ---------- Captures & historique ---------- */
+/* ---------- Historique ---------- */
 const hist=[];
 function snap(kmh,over){
   const c=document.createElement('canvas'),sc=Math.min(1,1280/video.videoWidth);
@@ -629,7 +703,7 @@ function renderHist(){
   h.innerHTML=hist.map(e=>`<div class="card${e.over?' ov':''}" data-id="${e.id}"><img src="${e.img}" alt=""><div><b class="num">${e.kmh==null?'--':conv(e.kmh).toFixed(0)+(S.unit==='mph'?' mph':' km/h')}</b><span class="num">${e.plate||'plaque ?'}</span></div></div>`).join('');
 }
 $('hist').onclick=ev=>{const c=ev.target.closest('.card');if(c)openPlate(hist.find(e=>String(e.id)===c.dataset.id))};
-$('bCap').onclick=()=>{ensureAudio();if(!video.videoWidth)return;const e=snap(null,false);addHist(e);openPlate(e);runOcr(e)};
+$('bCap').onclick=()=>{ensureAudio();if(!video.videoWidth){status('Caméra pas prête','err');return}const e=snap(null,false);addHist(e);openPlate(e);runOcr(e)};
 
 /* ---------- OCR ---------- */
 let worker=null,wLoad=null,cur=null;
@@ -679,6 +753,7 @@ async function getWorker(){
   try{return await wLoad}catch(e){wLoad=null;throw e}
 }
 const loadImg=u=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=u});
+
 async function runOcr(e){
   cur=e;e.busy=true;if($('shPl').classList.contains('open'))showPlate(e);
   try{
@@ -725,11 +800,19 @@ $('bReset').onclick=()=>{
   $('arc').setAttribute('stroke-dasharray','0 170');flashT=0;
   status('Réinitialisé');
 };
+$('btnRetry').onclick=startCam;
+$('bCsv').onclick=()=>{
+  const rows=['heure;vitesse_kmh;plaque;confiance'].concat(hist.map(e=>[e.time.toISOString(),e.kmh==null?'':e.kmh.toFixed(1),e.plate,Math.round(e.conf)].join(';')));
+  const a=document.createElement('a');a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));a.download='radar.csv';a.click();
+};
 
+/* ---------- Boot ---------- */
 addEventListener('resize',sync);
 addEventListener('orientationchange',()=>setTimeout(sync,400));
 buildFields();updateStats();$('unit').textContent=S.unit==='mph'?'mph':'km/h';
-startCam().then(sched);
+console.log('[RADAR] Boot OK');
+startCam();
+startLoop();  // ✅ Boucle infaillible via setInterval
 })();
 </script>
 </body>
