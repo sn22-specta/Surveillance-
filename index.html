@@ -186,27 +186,30 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 'use strict';
 const $=id=>document.getElementById(id);
 const video=$('video'),ov=$('ov'),oc=ov.getContext('2d'),stage=$('stage');
-const PW=320,PH=180,pcv=document.createElement('canvas');pcv.width=PW;pcv.height=PH;
+
+/* ✅ RÉSOLUTION RÉDUITE : 160x90 au lieu de 320x180 → 4x moins de bruit */
+const PW=160,PH=90;
+const pcv=document.createElement('canvas');pcv.width=PW;pcv.height=PH;
 const pc=pcv.getContext('2d',{willReadFrequently:true});
 
 /* ---------- Réglages ---------- */
-const D={dist:1,a:28,b:72,top:15,bot:95,sens:22,area:80,entryTol:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
+const D={dist:1,a:28,b:72,top:15,bot:95,sens:28,area:25,entryTol:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
 const F=[
  ['Mesure'],
  ['dist','Distance réelle entre A et B','m',.1,100,.1,'Calibrage : distance réelle au sol'],
  ['a','Position ligne A','%',5,95,1],['b','Position ligne B','%',5,95,1],
- ['entryTol','Zone d\'entrée','%',3,25,1,'Élargissez si l\'objet n\'est pas détecté à l\'entrée'],
+ ['entryTol','Zone d\'entrée','%',3,25,1,'Élargissez si l\'objet n\'est pas détecté'],
  ['limit','Limite de vitesse (0 = aucune)','km/h',0,200,5],
  ['Détection'],
  ['top','Bande de détection : haut','%',0,90,1],['bot','Bande de détection : bas','%',10,100,1],
  ['sens','Seuil de mouvement','',5,120,1,'Plus bas = plus sensible'],
- ['area','Taille mini du blob','px',20,800,5,'Augmentez si trop de points de bruit'],
+ ['area','Taille mini du blob','px',10,400,5,'Augmentez si trop de points de bruit'],
  ['Zone plaque'],
  ['px','Position X','%',0,95,1],['py','Position Y','%',0,95,1],['pw','Largeur','%',5,100,1],['ph','Hauteur','%',3,100,1]
 ];
 let S={...D};
-try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v8')||'{}'))}catch(e){}
-const save=()=>{try{localStorage.setItem('radar.v8',JSON.stringify(S))}catch(e){}};
+try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v9')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('radar.v9',JSON.stringify(S))}catch(e){}};
 
 function buildFields(){
   const box=$('fields');box.innerHTML='';
@@ -265,8 +268,7 @@ function updateStats(){
 }
 
 /* ---------- Caméra ---------- */
-let facing='environment',bg=null,frames=0,fpsT=performance.now(),flashT=0,currentFps=0,lastBlobs=0,lastState='idle';
-
+let facing='environment',bg=null,frames=0,fpsT=performance.now(),flashT=0,currentFps=0,lastState='idle';
 function sync(){
   const v=video.getBoundingClientRect(),s=stage.getBoundingClientRect();
   if(!v.width)return;
@@ -274,56 +276,36 @@ function sync(){
   if(ov.width!==w||ov.height!==h){ov.width=w;ov.height=h;bg=null}
   ov.style.cssText=`width:${w}px;height:${h}px;left:${v.left-s.left}px;top:${v.top-s.top}px`;
 }
-
-function showCamError(msg){
-  $('camErrMsg').textContent=msg;
-  $('camError').classList.add('show');
-}
-function hideCamError(){ $('camError').classList.remove('show'); }
-
+function showCamError(msg){$('camErrMsg').textContent=msg;$('camError').classList.add('show')}
+function hideCamError(){$('camError').classList.remove('show')}
 async function startCam(){
   try{
-    if(!navigator.mediaDevices || !navigator.mediaDevices.getUserMedia){
-      showCamError('Votre navigateur ne supporte pas getUserMedia. Utilisez Chrome/Firefox récent en HTTPS.');
-      status('getUserMedia indisponible','err');
+    if(!navigator.mediaDevices||!navigator.mediaDevices.getUserMedia){
+      showCamError('getUserMedia indisponible. Utilisez Chrome/Firefox récent en HTTPS.');
       return;
     }
     if(video.srcObject)video.srcObject.getTracks().forEach(t=>t.stop());
-    const stream=await navigator.mediaDevices.getUserMedia({
-      video:{facingMode:facing,width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}},
-      audio:false
+    video.srcObject=await navigator.mediaDevices.getUserMedia({
+      video:{facingMode:facing,width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}},audio:false
     });
-    video.srcObject=stream;
     await video.play().catch(()=>{});
-    hideCamError();
-    bg=null;resetTracker();
+    hideCamError();bg=null;resetTracker();
     status('Caméra prête — faites entrer un objet en A ou B','ok');
-    console.log('[RADAR] Camera OK:',video.videoWidth,'x',video.videoHeight);
   }catch(e){
-    const msg=e.name==='NotAllowedError'
-      ? 'Permission refusée. Autorisez la caméra dans les paramètres du navigateur.'
-      : e.name==='NotFoundError'
-      ? 'Aucune caméra détectée.'
-      : 'Erreur : '+e.message;
-    showCamError(msg);
-    status('Caméra inaccessible','err');
-    console.error('[RADAR] Camera error:',e);
+    const msg=e.name==='NotAllowedError'?'Permission refusée. Autorisez la caméra.'
+      :e.name==='NotFoundError'?'Aucune caméra détectée.':'Erreur : '+e.message;
+    showCamError(msg);status('Caméra inaccessible','err');
   }
 }
 
-/* ---------- Boucle principale (setInterval — infaillible) ---------- */
 let loopRunning=false;
 function startLoop(){
-  if(loopRunning)return;
-  loopRunning=true;
-  setInterval(()=>{
-    try{process(performance.now())}
-    catch(e){console.error('[RADAR] process error:',e);diag('Erreur : '+e.message)}
-  },33);
+  if(loopRunning)return;loopRunning=true;
+  setInterval(()=>{try{process(performance.now())}catch(e){console.error(e);diag('Erreur : '+e.message)}},33);
 }
 
 /* ============================================================
-   DÉTECTION DE BLOBS (composantes connexes)
+   DÉTECTION DE BLOBS (sur 160x90 = moins de bruit)
    ============================================================ */
 const maskBuf=new Uint8Array(PW*PH);
 const visitedBuf=new Uint8Array(PW*PH);
@@ -337,35 +319,27 @@ function detectBlobs(y0,y1){
       const startIdx=y*PW+x;
       if(!maskBuf[startIdx]||visitedBuf[startIdx])continue;
       let head=0,tail=0;
-      queueBuf[tail++]=startIdx;
-      visitedBuf[startIdx]=1;
-      let minX=x,maxX=x,minY=y,maxY=y,count=0,sumX=0,sumY=0;
+      queueBuf[tail++]=startIdx;visitedBuf[startIdx]=1;
+      let minX=x,maxX=x,minY=y,maxY=y,count=0;
       while(head<tail){
         const idx=queueBuf[head++];
-        const py=(idx/PW)|0;
-        const px=idx-py*PW;
+        const py=(idx/PW)|0,px=idx-py*PW;
         count++;
-        sumX+=px;sumY+=py;
-        if(px<minX)minX=px;
-        if(px>maxX)maxX=px;
-        if(py<minY)minY=py;
-        if(py>maxY)maxY=py;
+        if(px<minX)minX=px;if(px>maxX)maxX=px;
+        if(py<minY)minY=py;if(py>maxY)maxY=py;
         if(px>0){const n=idx-1;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
         if(px<PW-1){const n=idx+1;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
         if(py>y0){const n=idx-PW;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
         if(py<y1-1){const n=idx+PW;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
       }
       if(count>=S.area){
-        const w=(maxX-minX+1)/PW;
-        const h=(maxY-minY+1)/PH;
-        // ✅ FILTRE RENFORCÉ : rejette les points de bruit isolés
-        if(w>=0.02 && h>=0.02 && w<0.95){
+        const w=(maxX-minX+1)/PW,h=(maxY-minY+1)/PH;
+        /* ✅ Filtre strict : largeur ≥ 3%, hauteur ≥ 3%, ratio cohérent */
+        if(w>=0.03&&h>=0.03&&w<0.95&&h<0.95){
           blobs.push({
-            cx:((minX+maxX)/2)/PW, cy:((minY+maxY)/2)/PH,
-            x1:minX/PW, x2:(maxX+1)/PW,
-            y1:minY/PH, y2:(maxY+1)/PH,
-            w,h,area:count,
-            sumX:sumX/count/PW, sumY:sumY/count/PH
+            cx:((minX+maxX)/2)/PW,cy:((minY+maxY)/2)/PH,
+            x1:minX/PW,x2:(maxX+1)/PW,y1:minY/PH,y2:(maxY+1)/PH,
+            w,h,area:count
           });
         }
       }
@@ -380,15 +354,11 @@ function detectBlobs(y0,y1){
 function mergeBlobs(blobs){
   if(blobs.length<=1)return blobs;
   const sorted=[...blobs].sort((a,b)=>b.area-a.area);
-  const merged=[];
-  const used=new Set();
-  const MERGE_DIST=0.12;   // distance max entre centres pour fusionner
-  const MERGE_GAP=0.02;    // tolérance de chevauchement des bbox
-  
+  const merged=[];const used=new Set();
+  const MERGE_DIST=0.15,MERGE_GAP=0.02;
   for(let i=0;i<sorted.length;i++){
     if(used.has(i))continue;
-    const b={...sorted[i]};
-    used.add(i);
+    const b={...sorted[i]};used.add(i);
     let changed=true;
     while(changed){
       changed=false;
@@ -398,19 +368,13 @@ function mergeBlobs(blobs){
         const dist=Math.hypot(b.cx-o.cx,b.cy-o.cy);
         const overlapX=Math.min(b.x2,o.x2)-Math.max(b.x1,o.x1);
         const overlapY=Math.min(b.y2,o.y2)-Math.max(b.y1,o.y1);
-        const close=overlapX>-MERGE_GAP && overlapY>-MERGE_GAP;
-        if(dist<MERGE_DIST||close){
-          b.x1=Math.min(b.x1,o.x1);
-          b.x2=Math.max(b.x2,o.x2);
-          b.y1=Math.min(b.y1,o.y1);
-          b.y2=Math.max(b.y2,o.y2);
-          b.w=b.x2-b.x1;
-          b.h=b.y2-b.y1;
+        if(dist<MERGE_DIST||(overlapX>-MERGE_GAP&&overlapY>-MERGE_GAP)){
+          b.x1=Math.min(b.x1,o.x1);b.x2=Math.max(b.x2,o.x2);
+          b.y1=Math.min(b.y1,o.y1);b.y2=Math.max(b.y2,o.y2);
+          b.w=b.x2-b.x1;b.h=b.y2-b.y1;
           b.area+=o.area;
-          b.cx=(b.x1+b.x2)/2;
-          b.cy=(b.y1+b.y2)/2;
-          used.add(j);
-          changed=true;
+          b.cx=(b.x1+b.x2)/2;b.cy=(b.y1+b.y2)/2;
+          used.add(j);changed=true;
         }
       }
     }
@@ -420,18 +384,23 @@ function mergeBlobs(blobs){
 }
 
 /* ============================================================
-   TRACKER — avec anti-jitter et lissage EMA
+   TRACKER — Filtre de Kalman 1D + verrouillage de taille
    ============================================================ */
 let tracker=null,lastFinishT=0,trail=[];
 const A=()=>S.a/100;
 const B=()=>S.b/100;
 const TOL=()=>S.entryTol/100;
-const MATCH_BASE=0.20;
-const MATCH_PER_SEC=0.4;
+
+/* Paramètres Kalman 1D */
+const KF_Q=0.0005;   // bruit de processus (petit = très lisse)
+const KF_R=0.03;     // bruit de mesure (grand = confiance faible en la mesure brute)
+
+/* Verrouillage de taille */
+const SIZE_LOCK=0.40;  // un blob qui change de ±40% de taille est ignoré
+
 const LOST_TIMEOUT=2500;
-const TRACK_TIMEOUT=12000;
-const MIN_MOVE=0.005;      // 0.5% de la largeur (ignore les micro-mouvements)
-const EMA_ALPHA=0.35;      // lissage position
+const TRACK_TIMEOUT=15000;
+const MIN_MOVE=0.01;   // 1% de la largeur (plus strict que 0.5%)
 
 function resetTracker(){
   tracker=null;trail=[];
@@ -445,102 +414,139 @@ function blobNearLine(b,lineX,tol){
   return overlap||centerNear;
 }
 
+/* ============================================================
+   FILTRE DE KALMAN 1D (très simple)
+   ============================================================ */
+function kfInit(pos){
+  return {pos:pos, vel:0, pPos:1, pVel:1};
+}
+function kfPredict(kf, dt){
+  // Prédiction : position += velocity * dt
+  kf.pos += kf.vel * dt;
+  kf.pPos += KF_Q + dt * kf.pVel;
+  kf.pVel += KF_Q;
+}
+function kfUpdate(kf, measurement, dt){
+  // Gain de Kalman
+  const S_gain = kf.pPos + KF_R;
+  const K = kf.pPos / S_gain;
+  // Correction
+  const innovation = measurement - kf.pos;
+  kf.pos += K * innovation;
+  kf.pPos = (1 - K) * kf.pPos;
+  // Estimation de la vélocité (sur les positions)
+  if(dt > 0.001){
+    const measVel = innovation / dt;
+    kf.vel = kf.vel * 0.7 + measVel * 0.3;
+  }
+}
+
 function updateTracker(blobs,t){
-  /* --- PHASE 1 : cherche une entrée --- */
+  /* --- PHASE 1 : chercher une entrée (strict) --- */
   if(!tracker){
     if(t-lastFinishT<600)return;
     const tol=TOL();
-    let bestB=null,bestLine=null,bestDist=Infinity;
+    /* ✅ On prend LE PLUS GROS blob qui touche A ou B,
+       ET dont l'aire est ≥ 2× S.area (évite les micro-blobs) */
+    let bestB=null,bestLine=null,bestArea=0;
     for(const b of blobs){
-      const dA=Math.abs(b.cx-A()),dB=Math.abs(b.cx-B());
-      if(blobNearLine(b,A(),tol)&&dA<bestDist){bestB=b;bestLine='A';bestDist=dA}
-      if(blobNearLine(b,B(),tol)&&dB<bestDist){bestB=b;bestLine='B';bestDist=dB}
+      if(b.area < S.area*2) continue;
+      if(blobNearLine(b,A(),tol) && b.area>bestArea){bestB=b;bestLine='A';bestArea=b.area}
+      if(blobNearLine(b,B(),tol) && b.area>bestArea){bestB=b;bestLine='B';bestArea=b.area}
     }
     if(bestB){
       tracker={
-        cx:bestB.cx,cy:bestB.cy,
-        rawCx:bestB.cx,rawCy:bestB.cy,
         x1:bestB.x1,x2:bestB.x2,y1:bestB.y1,y2:bestB.y2,
         w:bestB.w,h:bestB.h,area:bestB.area,
-        vx:0,vy:0,
-        prevCx:bestB.cx,prevT:t,
-        firstSeen:t,lastSeenT:t,lastT:t,
-        lockTime:t,lockLine:bestLine,
-        missed:0,updates:0
+        kfX: kfInit(bestB.cx),
+        kfY: kfInit(bestB.cy),
+        cx:bestB.cx, cy:bestB.cy,
+        prevCx:bestB.cx, prevT:t,
+        firstSeen:t, lastSeenT:t, lastT:t,
+        lockTime:t, lockLine:bestLine,
+        missCount:0, updateCount:0
       };
       trail=[{x:bestB.cx,y:bestB.cy,t}];
       lastState='tracking';
       $('dash').classList.add('tracking');
-      status(`🔒 Entrée ${bestLine} verrouillée — en attente de ${bestLine==='A'?'B':'A'}…`,'track');
+      status(`🔒 Verrouillé sur ${bestLine} — en attente de ${bestLine==='A'?'B':'A'}…`,'track');
       beep(660,.05,.1);
     }
     return;
   }
-  
-  /* --- PHASE 2 : suit le blob le plus proche --- */
+
+  /* --- PHASE 2 : suivi avec Kalman --- */
   const dt=Math.max(0.001,(t-tracker.lastT)/1000);
-  const predX=tracker.cx+tracker.vx*dt;
-  const predY=tracker.cy+tracker.vy*dt;
-  const matchMax=MATCH_BASE+dt*MATCH_PER_SEC;
+
+  /* Prédiction Kalman */
+  kfPredict(tracker.kfX,dt);
+  kfPredict(tracker.kfY,dt);
+
+  /* Chercher le blob le plus proche de la prédiction */
   let best=null,bestD=Infinity;
+  const predX=tracker.kfX.pos, predY=tracker.kfY.pos;
   for(const b of blobs){
-    const d=Math.hypot(b.cx-predX,b.cy-predY);
+    /* ✅ Vérification de taille : le blob doit être de taille similaire */
+    const sizeRatio=Math.abs(b.area-tracker.area)/Math.max(tracker.area,1);
+    if(sizeRatio > SIZE_LOCK) continue;
+    const d=Math.hypot(b.cx-predX, b.cy-predY);
     if(d<bestD){bestD=d;best=b}
   }
-  if(best&&bestD<matchMax){
-    // ✅ Anti-jitter : ne mettre à jour QUE si mouvement significatif
-    const movement=Math.hypot(best.cx-tracker.rawCx,best.cy-tracker.rawCy);
-    if(movement>=MIN_MOVE){
-      const nvx=(best.cx-tracker.rawCx)/dt;
-      const nvy=(best.cy-tracker.rawCy)/dt;
-      tracker.vx=tracker.vx*0.6+nvx*0.4;
-      tracker.vy=tracker.vy*0.6+nvy*0.4;
-      tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
-      // Lissage EMA de la position affichée
-      tracker.cx=tracker.cx*(1-EMA_ALPHA)+best.cx*EMA_ALPHA;
-      tracker.cy=tracker.cy*(1-EMA_ALPHA)+best.cy*EMA_ALPHA;
-      tracker.rawCx=best.cx;tracker.rawCy=best.cy;
-      // Lissage bbox
-      tracker.x1=tracker.x1*0.7+best.x1*0.3;
-      tracker.x2=tracker.x2*0.7+best.x2*0.3;
-      tracker.y1=tracker.y1*0.7+best.y1*0.3;
-      tracker.y2=tracker.y2*0.7+best.y2*0.3;
-      tracker.w=tracker.x2-tracker.x1;
-      tracker.h=tracker.y2-tracker.y1;
-      tracker.area=best.area;
-      tracker.updates++;
-    }
-    tracker.lastT=t;tracker.lastSeenT=t;tracker.missed=0;
+
+  const matchMax=0.20 + dt*0.4;
+
+  if(best && bestD<matchMax){
+    /* Correction Kalman avec la mesure */
+    kfUpdate(tracker.kfX, best.cx, dt);
+    kfUpdate(tracker.kfY, best.cy, dt);
+    
+    tracker.prevCx = tracker.cx;
+    tracker.prevT = tracker.lastT;
+    tracker.cx = tracker.kfX.pos;
+    tracker.cy = tracker.kfY.pos;
+    
+    /* BBox : lissage doux */
+    tracker.x1 = tracker.x1*0.75 + best.x1*0.25;
+    tracker.x2 = tracker.x2*0.75 + best.x2*0.25;
+    tracker.y1 = tracker.y1*0.75 + best.y1*0.25;
+    tracker.y2 = tracker.y2*0.75 + best.y2*0.25;
+    tracker.w = tracker.x2-tracker.x1;
+    tracker.h = tracker.y2-tracker.y1;
+    tracker.area = best.area;
+    
+    tracker.lastT=t; tracker.lastSeenT=t; tracker.missCount=0;
+    tracker.updateCount++;
   }else{
-    tracker.missed++;
-    tracker.prevCx=tracker.cx;tracker.prevT=tracker.lastT;
-    tracker.cx=predX;tracker.cy=predY;
+    /* Frame manquée : on garde la prédiction Kalman */
+    tracker.missCount++;
+    tracker.prevCx=tracker.cx;
+    tracker.prevT=tracker.lastT;
+    tracker.cx=tracker.kfX.pos;
+    tracker.cy=tracker.kfY.pos;
     tracker.lastT=t;
-    if(tracker.missed>8||t-tracker.lastSeenT>LOST_TIMEOUT){
-      resetTracker();
-      status('Suivi perdu — mesure annulée','err');
-      return;
+    if(tracker.missCount>10 || t-tracker.lastSeenT>LOST_TIMEOUT){
+      resetTracker();status('Suivi perdu — mesure annulée','err');return;
     }
   }
-  
+
   /* --- PHASE 3 : détection de sortie --- */
   const lastTrail=trail[trail.length-1];
-  if(!lastTrail||Math.hypot(tracker.cx-lastTrail.x,tracker.cy-lastTrail.y)>MIN_MOVE){
+  if(!lastTrail || Math.hypot(tracker.cx-lastTrail.x, tracker.cy-lastTrail.y) > MIN_MOVE){
     trail.push({x:tracker.cx,y:tracker.cy,t});
   }
-  while(trail.length&&t-trail[0].t>2500)trail.shift();
-  
-  const exitLine=tracker.lockLine==='A'?B():A();
-  const px=tracker.prevCx,cx=tracker.cx;
-  
+  while(trail.length && t-trail[0].t>2500)trail.shift();
+
+  const exitLine = tracker.lockLine==='A' ? B() : A();
+  const px=tracker.prevCx, cx=tracker.cx;
+
   if((px-exitLine)*(cx-exitLine)<0){
     const dtFrame=tracker.lastT-tracker.prevT;
-    const frac=Math.abs(cx-px)>1e-6?(exitLine-px)/(cx-px):0.5;
+    const frac=Math.abs(cx-px)>1e-6 ? (exitLine-px)/(cx-px) : 0.5;
     const tExit=tracker.prevT+frac*dtFrame;
     const dtTotal=(tExit-tracker.lockTime)/1000;
-    if(dtTotal>0.05&&dtTotal<TRACK_TIMEOUT/1000){
+    if(dtTotal>0.05 && dtTotal<TRACK_TIMEOUT/1000){
       const kmh=S.dist/dtTotal*3.6;
-      if(kmh>0&&kmh<400){
+      if(kmh>0 && kmh<400){
         finish(kmh,dtTotal,tracker.lockLine==='A'?1:-1);
       }
     }
@@ -548,10 +554,9 @@ function updateTracker(blobs,t){
     lastFinishT=t;
     return;
   }
-  
+
   if(t-tracker.firstSeen>TRACK_TIMEOUT){
-    resetTracker();
-    status('Temps écoulé','err');
+    resetTracker();status('Temps écoulé','err');
   }
 }
 
@@ -562,8 +567,7 @@ function process(t){
     if(currentFps>0&&currentFps<999)$('fps').textContent=currentFps+' fps';
     frames=0;fpsT=t;
   }
-  if(!video.videoWidth){diag(`En attente de la caméra… (readyState ${video.readyState})`);return}
-  if(video.readyState<2){diag(`Caméra en démarrage… (readyState ${video.readyState})`);return}
+  if(!video.videoWidth||video.readyState<2){diag('En attente de la caméra…');return}
   
   sync();
   pc.drawImage(video,0,0,PW,PH);
@@ -571,9 +575,9 @@ function process(t){
   if(!bg||bg.length!==n){
     bg=new Float32Array(n);
     for(let i=0;i<n;i++)bg[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
-    diag(`Init background… ${video.videoWidth}×${video.videoHeight}`);
     draw(t);return;
   }
+  
   const y0=Math.floor(S.top/100*PH);
   const y1=Math.max(y0+1,Math.ceil(S.bot/100*PH));
   
@@ -589,19 +593,15 @@ function process(t){
       if(moving){maskBuf[i]=1;totalMoving++}
     }
   }
-  if(totalMoving>0.85*PW*(y1-y0)){
-    bg=null;resetTracker();draw(t);return;
-  }
+  if(totalMoving>0.85*PW*(y1-y0)){bg=null;resetTracker();draw(t);return}
   
-  // ✅ Détection PUIS fusion des blobs proches
   const rawBlobs=detectBlobs(y0,y1);
   const blobs=mergeBlobs(rawBlobs);
-  lastBlobs=blobs.length;
   updateTracker(blobs,t);
   
   diag(`FPS ${currentFps} · Blobs ${blobs.length} (brut ${rawBlobs.length}) · Pixels ${totalMoving} · ${lastState==='idle'?'IDLE':lastState==='tracking'?'SUIVI':'finish'}`);
   
-  if(!tracker&&t-lastFinishT>800){
+  if(!tracker && t-lastFinishT>800){
     if(blobs.length>0)status(`${blobs.length} objet(s) — visez A ou B`);
     else status('Prêt — aucun mouvement');
   }
@@ -616,8 +616,7 @@ function finish(kmh,dt,dir){
   let scale;
   if(S.limit>0){scale=Math.max(S.limit*1.15,kmh*1.15,20)}
   else{scale=Math.max(20,Math.ceil(kmh/10)*10);if(kmh>0&&kmh/scale<0.6)scale=kmh/0.85}
-  const ratio=Math.min(1,kmh/scale);
-  $('arc').setAttribute('stroke-dasharray',`${ratio*169.6} 170`);
+  $('arc').setAttribute('stroke-dasharray',`${Math.min(1,kmh/scale)*169.6} 170`);
   $('dt').textContent=`Temps : ${dt.toFixed(2)} s`;
   $('dir').textContent=dir>0?'Sens : →':'Sens : ←';
   const over=S.limit>0&&kmh>S.limit;
@@ -640,14 +639,14 @@ function draw(t,blobs){
   oc.clearRect(0,0,W,H);
   const ax=S.a/100*W,bx=S.b/100*W,yt=S.top/100*H,yb=S.bot/100*H;
   const tol=TOL();
-  
-  if(flashT&&t>flashT){$('dash').classList.remove('valid');flashT=0;}
-  
+
+  if(flashT&&t>flashT){$('dash').classList.remove('valid');flashT=0}
+
   oc.fillStyle='rgba(0,0,0,.4)';oc.fillRect(0,0,W,yt);oc.fillRect(0,yb,W,H-yb);
   oc.fillStyle='rgba(46,230,214,0.10)';
   oc.fillRect((A()-tol)*W,yt,tol*2*W,yb-yt);
   oc.fillRect((B()-tol)*W,yt,tol*2*W,yb-yt);
-  
+
   const bl=22,bo=10;oc.strokeStyle='rgba(46,230,214,.65)';oc.lineWidth=2;oc.lineCap='round';
   oc.beginPath();
   oc.moveTo(bo+bl,bo);oc.lineTo(bo,bo);oc.lineTo(bo,bo+bl);
@@ -655,66 +654,72 @@ function draw(t,blobs){
   oc.moveTo(bo,H-bo-bl);oc.lineTo(bo,H-bo);oc.lineTo(bo+bl,H-bo);
   oc.moveTo(W-bo,H-bo-bl);oc.lineTo(W-bo,H-bo);oc.lineTo(W-bo-bl,H-bo);
   oc.stroke();
-  
+
   const fs=Math.max(12,W/40);
   oc.lineWidth=Math.max(2,W/300);oc.setLineDash([10,7]);
   const activeA=tracker&&tracker.lockLine==='A';
   const activeB=tracker&&tracker.lockLine==='B';
-  
+
   oc.strokeStyle=activeA?'#34d399':'rgba(255,176,32,.85)';
   oc.shadowBlur=activeA?14:5;oc.shadowColor=activeA?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
   oc.beginPath();oc.moveTo(ax,yt);oc.lineTo(ax,yb);oc.stroke();oc.shadowBlur=0;
-  
+
   oc.strokeStyle=activeB?'#34d399':'rgba(255,176,32,.85)';
   oc.shadowBlur=activeB?14:5;oc.shadowColor=activeB?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
   oc.beginPath();oc.moveTo(bx,yt);oc.lineTo(bx,yb);oc.stroke();oc.setLineDash([]);oc.shadowBlur=0;
-  
+
   oc.font=`700 ${fs}px ui-monospace,monospace`;
   oc.fillStyle=activeA?'#34d399':'#ffb020';oc.fillText('A',ax+6,yt+fs+4);
   oc.fillStyle=activeB?'#34d399':'#ffb020';oc.fillText('B',bx+6,yt+fs+4);
-  
-  // Blobs non suivis (contours gris)
+
+  /* Blobs non suivis (très discret) */
   if(blobs&&blobs.length){
     for(const b of blobs){
-      if(tracker&&Math.abs(b.cx-tracker.rawCx)<0.001&&Math.abs(b.cy-tracker.rawCy)<0.001)continue;
-      oc.strokeStyle='rgba(122,138,166,.35)';oc.lineWidth=1;
+      if(tracker && Math.abs(b.cx-tracker.cx)<0.02 && Math.abs(b.cy-tracker.cy)<0.02) continue;
+      oc.strokeStyle='rgba(122,138,166,.18)';oc.lineWidth=1;
       oc.strokeRect(b.x1*W,b.y1*H,b.w*W,b.h*H);
     }
   }
-  
-  // Tracker
+
+  /* Tracker : centre unique, stable */
   if(tracker){
     const tx=tracker.cx*W,ty=tracker.cy*H;
     const bx1=tracker.x1*W,by1=tracker.y1*H,bw=tracker.w*W,bh=tracker.h*H;
     oc.strokeStyle='#34d399';oc.lineWidth=2.5;
-    oc.shadowBlur=10;oc.shadowColor='rgba(52,211,153,.7)';
+    oc.shadowBlur=12;oc.shadowColor='rgba(52,211,153,.8)';
     oc.strokeRect(bx1,by1,bw,bh);oc.shadowBlur=0;
+    
     const corner=Math.min(bw,bh)*0.3;
-    oc.lineWidth=3.5;oc.strokeStyle='#34d399';
+    oc.lineWidth=4;oc.strokeStyle='#34d399';
     oc.beginPath();
     oc.moveTo(bx1,by1+corner);oc.lineTo(bx1,by1);oc.lineTo(bx1+corner,by1);
     oc.moveTo(bx1+bw-corner,by1);oc.lineTo(bx1+bw,by1);oc.lineTo(bx1+bw,by1+corner);
     oc.moveTo(bx1,by1+bh-corner);oc.lineTo(bx1,by1+bh);oc.lineTo(bx1+corner,by1+bh);
     oc.moveTo(bx1+bw-corner,by1+bh);oc.lineTo(bx1+bw,by1+bh);oc.lineTo(bx1+bw,by1+bh-corner);
     oc.stroke();
-    oc.beginPath();oc.arc(tx,ty,10,0,7);oc.fillStyle='rgba(52,211,153,.25)';oc.fill();
-    oc.beginPath();oc.arc(tx,ty,5,0,7);oc.fillStyle='#34d399';oc.fill();
-    oc.strokeStyle='#fff';oc.lineWidth=1.5;oc.stroke();
+
+    /* Croix de visée + cercle pulsant */
+    oc.beginPath();oc.arc(tx,ty,14,0,7);oc.fillStyle='rgba(52,211,153,.15)';oc.fill();
+    oc.beginPath();oc.arc(tx,ty,8,0,7);oc.fillStyle='rgba(52,211,153,.4)';oc.fill();
+    oc.beginPath();oc.arc(tx,ty,3,0,7);oc.fillStyle='#fff';oc.fill();
+    
     oc.strokeStyle='#34d399';oc.lineWidth=2;
     oc.beginPath();
-    oc.moveTo(tx-14,ty);oc.lineTo(tx-8,ty);
-    oc.moveTo(tx+8,ty);oc.lineTo(tx+14,ty);
-    oc.moveTo(tx,ty-14);oc.lineTo(tx,ty-8);
-    oc.moveTo(tx,ty+8);oc.lineTo(tx,ty+14);
+    oc.moveTo(tx-18,ty);oc.lineTo(tx-10,ty);
+    oc.moveTo(tx+10,ty);oc.lineTo(tx+18,ty);
+    oc.moveTo(tx,ty-18);oc.lineTo(tx,ty-10);
+    oc.moveTo(tx,ty+10);oc.lineTo(tx,ty+18);
     oc.stroke();
-    if(Math.abs(tracker.vx)>0.01){
-      const inst=Math.abs(tracker.vx)*S.dist*3.6;
+
+    /* Vitesse instantanée (Kalman) */
+    if(Math.abs(tracker.kfX.vel)>0.005){
+      const inst=Math.abs(tracker.kfX.vel)*S.dist*3.6;
       oc.font=`600 ${fs*.7}px ui-monospace,monospace`;
       oc.fillStyle='#34d399';
-      oc.fillText(`≈ ${inst.toFixed(1)} km/h`,tx+18,ty-12);
+      oc.fillText(`≈ ${inst.toFixed(1)} km/h`,tx+22,ty-14);
     }
   }
-  
+
   if(S.zone){
     const zx=S.px/100*W,zy=S.py/100*H,zw=S.pw/100*W,zh=S.ph/100*H;
     oc.strokeStyle='rgba(52,211,153,.9)';oc.lineWidth=2;oc.setLineDash([5,4]);
@@ -723,11 +728,11 @@ function draw(t,blobs){
     oc.fillStyle='#34d399';oc.font=`600 ${fs*.75}px system-ui`;
     oc.fillText('PLAQUE',zx+4,zy-4);
   }
-  
+
   if(trail.length>1){
     for(let i=1;i<trail.length;i++){
       const a=trail[i-1],b=trail[i],alpha=i/trail.length;
-      oc.strokeStyle=`rgba(52,211,153,${alpha*0.8})`;
+      oc.strokeStyle=`rgba(52,211,153,${alpha*0.7})`;
       oc.lineWidth=1+alpha*3;
       oc.beginPath();oc.moveTo(a.x*W,a.y*H);oc.lineTo(b.x*W,b.y*H);oc.stroke();
     }
@@ -799,7 +804,6 @@ async function getWorker(){
   try{return await wLoad}catch(e){wLoad=null;throw e}
 }
 const loadImg=u=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=u});
-
 async function runOcr(e){
   cur=e;e.busy=true;if($('shPl').classList.contains('open'))showPlate(e);
   try{
@@ -856,10 +860,9 @@ $('bCsv').onclick=()=>{
 addEventListener('resize',sync);
 addEventListener('orientationchange',()=>setTimeout(sync,400));
 buildFields();updateStats();$('unit').textContent=S.unit==='mph'?'mph':'km/h';
-console.log('[RADAR] Boot OK');
 startCam();
 startLoop();
 })();
 </script>
 </body>
-</html>
+    </html>
