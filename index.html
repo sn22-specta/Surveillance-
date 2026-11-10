@@ -3,14 +3,14 @@
 <head>
 <meta charset="UTF-8">
 <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no, viewport-fit=cover">
-<title>RADAR SIMPLE</title>
+<title>RADAR TRACKER v7.1</title>
 <script src="https://cdn.jsdelivr.net/npm/tesseract.js@5.1.1/dist/tesseract.min.js" defer></script>
 <style>
-:root{--bg:#080c14;--pn:#111a2b;--bd:#22314d;--tx:#e5ecf6;--mu:#7a8aa6;--cy:#2ee6d6;--am:#ffb020;--rd:#ff4d5e;--gn:#34d399}
+:root{--bg:#080c14;--pn:#111a2b;--bd:#22314d;--tx:#e5ecf6;--mu:#7a8aa6;--cy:#2ee6d6;--am:#ffb020;--rd:#ff4d5e;--gn:#34d399;--bl:#3b82f6}
 *{box-sizing:border-box;margin:0;padding:0;-webkit-tap-highlight-color:transparent}
 html,body{height:100%;overflow:hidden}
-body{font-family:system-ui,-apple-system,sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;user-select:none;-webkit-user-select:none}
-.num{font-family:ui-monospace,Menlo,monospace;font-variant-numeric:tabular-nums}
+body{font-family:system-ui,-apple-system,"Segoe UI",sans-serif;background:var(--bg);color:var(--tx);display:flex;flex-direction:column;user-select:none;-webkit-user-select:none}
+.num{font-family:ui-monospace,"SF Mono",Menlo,monospace;font-variant-numeric:tabular-nums}
 
 header{display:flex;justify-content:space-between;align-items:center;padding:max(10px,env(safe-area-inset-top)) 14px 8px}
 .brand{font-weight:800;letter-spacing:.2em;font-size:14px;display:flex;align-items:center;gap:8px}
@@ -24,14 +24,15 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 #ov{position:absolute;pointer-events:none}
 
 .dash{display:grid;grid-template-columns:148px 1fr;gap:14px;align-items:center;margin:10px 12px 6px;padding:12px 14px;background:var(--pn);border:1px solid var(--bd);border-radius:16px;transition:all .3s}
-.dash.armed{border-color:var(--am);box-shadow:0 0 0 1px var(--am),0 0 24px rgba(255,176,32,.25)}
-.dash.over{border-color:var(--rd);box-shadow:0 0 0 1px var(--rd),0 0 24px rgba(255,77,94,.35)}
-.dash.valid{border-color:var(--gn);box-shadow:0 0 18px rgba(52,211,153,.45)}
+.dash.over{border-color:var(--rd);box-shadow:0 0 0 1px var(--rd),0 0 24px rgba(255,77,94,.35);animation:warn 1s infinite}
+.dash.valid{border-color:var(--gn);box-shadow:0 0 15px rgba(52,211,153,.4)}
+.dash.tracking{border-color:var(--gn);box-shadow:0 0 20px rgba(52,211,153,.5)}
+@keyframes warn{0%,100%{box-shadow:0 0 0 1px var(--rd),0 0 24px rgba(255,77,94,.35)}50%{box-shadow:0 0 0 1px var(--rd),0 0 40px rgba(255,77,94,.6)}}
 .gauge{position:relative;width:148px;height:88px}
-.gauge svg{width:100%;height:100%}
+.gauge svg{width:100%;height:100%;overflow:visible}
 .gv{position:absolute;left:0;right:0;bottom:0;text-align:center}
 #spd{font-size:36px;font-weight:800;line-height:1;color:var(--am);text-shadow:0 0 22px rgba(255,176,32,.4)}
-.over #spd{color:var(--rd)}
+.over #spd{color:var(--rd);text-shadow:0 0 22px rgba(255,77,94,.6)}
 #unit{font-size:10px;color:var(--mu);margin-top:2px;font-weight:600;letter-spacing:1px}
 #arc{transition:stroke-dasharray .55s cubic-bezier(.34,1.2,.64,1)}
 .side{display:flex;flex-direction:column;gap:8px;min-width:0}
@@ -39,29 +40,37 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 .plate{display:flex;height:44px;border-radius:6px;overflow:hidden;background:linear-gradient(180deg,#fafcfe,#dde4eb);box-shadow:inset 0 0 0 1px rgba(0,0,0,.15),0 2px 10px rgba(0,0,0,.4)}
 .plate i{width:18px;background:linear-gradient(180deg,#0b4aa8,#063578);color:#fdd835;font:700 9px/1 system-ui;display:flex;flex-direction:column;align-items:center;justify-content:center;font-style:normal;gap:1px}
 .plate i::before{content:'★';font-size:7px}
-.plate b{flex:1;display:flex;align-items:center;justify-content:center;color:#0a0e17;font:800 21px ui-monospace,Menlo,monospace;letter-spacing:.09em;white-space:nowrap;overflow:hidden}
+.plate b{flex:1;display:flex;align-items:center;justify-content:center;color:#0a0e17;font:800 21px ui-monospace,Menlo,monospace;letter-spacing:.09em;white-space:nowrap;overflow:hidden;text-shadow:0 1px 0 rgba(255,255,255,.5)}
 .meta{font-size:11px;color:var(--mu);display:flex;justify-content:space-between}
 
+.stats{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 12px 8px}
+.stat{background:rgba(17,26,43,.6);border:1px solid var(--bd);border-radius:10px;padding:6px 4px;text-align:center}
+.stat b{display:block;font-size:15px;color:var(--am);font-weight:800}
+.stat.over b{color:var(--rd)}
+.stat small{display:block;font-size:9px;color:var(--mu);text-transform:uppercase;letter-spacing:.8px;margin-top:1px}
+
 .ctl{display:grid;grid-template-columns:repeat(4,1fr);gap:8px;padding:0 12px 8px}
-.btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;background:var(--pn);border:1px solid var(--bd);border-radius:12px;color:var(--tx);font:600 11px system-ui;cursor:pointer;transition:all .15s;text-decoration:none}
+.btn{display:flex;flex-direction:column;align-items:center;gap:5px;padding:10px 4px;background:var(--pn);border:1px solid var(--bd);border-radius:12px;color:var(--tx);font:600 11px system-ui;cursor:pointer;transition:all .15s}
 .btn svg{width:20px;height:20px}
 .btn:active{transform:scale(.95);background:rgba(46,230,214,.1)}
-.btn.main{background:linear-gradient(135deg,rgba(46,230,214,.9),rgba(46,230,214,.7));color:#04211f;border-color:var(--cy)}
+.btn.main{background:linear-gradient(135deg,rgba(46,230,214,.9),rgba(46,230,214,.7));color:#04211f;border-color:var(--cy);box-shadow:0 4px 20px rgba(46,230,214,.3)}
 
 #hist{display:flex;gap:8px;overflow-x:auto;padding:0 12px 8px;scrollbar-width:none}
 #hist::-webkit-scrollbar{display:none}
 #hist .empty{flex:1;text-align:center;padding:12px;color:var(--mu);font-size:12px;background:rgba(17,26,43,.4);border-radius:10px;border:1px dashed var(--bd)}
 .card{flex:0 0 auto;display:flex;gap:8px;align-items:center;background:var(--pn);border:1px solid var(--bd);border-radius:10px;padding:5px 10px 5px 5px;cursor:pointer}
+.card:active{border-color:var(--cy)}
 .card img{width:52px;height:36px;object-fit:cover;border-radius:5px;background:#000}
 .card b{display:block;font-size:14px;color:var(--am);font-weight:800}
 .card.ov b{color:var(--rd)}
 .card span{font-size:10px;color:var(--mu);letter-spacing:.5px}
 
-#st{padding:2px 14px max(10px,env(safe-area-inset-bottom));font-size:12px;color:var(--mu);text-align:center;font-weight:500;min-height:28px}
+#st{padding:2px 14px max(10px,env(safe-area-inset-bottom));font-size:11px;color:var(--mu);font-weight:500;text-align:center}
 
 .sheet{position:fixed;inset:0;z-index:50;background:rgba(4,7,12,.86);backdrop-filter:blur(8px);display:none;align-items:flex-end;justify-content:center}
 .sheet.open{display:flex}
-.panel{width:100%;max-width:520px;max-height:88vh;overflow:auto;background:var(--pn);border:1px solid var(--bd);border-radius:20px 20px 0 0;padding:16px 16px max(18px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px}
+.panel{width:100%;max-width:520px;max-height:88vh;overflow:auto;background:var(--pn);border:1px solid var(--bd);border-radius:20px 20px 0 0;padding:16px 16px max(18px,env(safe-area-inset-bottom));display:flex;flex-direction:column;gap:12px;animation:up .22s ease-out}
+@keyframes up{from{transform:translateY(40px);opacity:0}to{transform:none;opacity:1}}
 .ph{display:flex;justify-content:space-between;align-items:center;font-weight:700;font-size:15px}
 .x{background:none;border:1px solid var(--bd);color:var(--mu);border-radius:8px;width:32px;height:32px;font-size:16px;cursor:pointer}
 .row{display:grid;grid-template-columns:1fr auto;gap:2px 10px;font-size:13px}
@@ -71,7 +80,7 @@ header{display:flex;justify-content:space-between;align-items:center;padding:max
 .grp{font-size:11px;color:var(--cy);font-weight:700;margin-top:6px;text-transform:uppercase;letter-spacing:1px}
 
 input[type=range]{-webkit-appearance:none;appearance:none;height:4px;background:var(--bg);border-radius:2px;outline:none;margin:6px 0}
-input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;background:var(--cy);border-radius:50%;cursor:pointer;box-shadow:0 0 0 3px rgba(46,230,214,.2)}
+input[type=range]::-webkit-slider-thumb{-webkit-appearance:none;width:18px;height:18px;background:var(--cy);border-radius:50%;cursor:pointer;box-shadow:0 0 0 3px rgba(46,230,214,.2),0 2px 6px rgba(0,0,0,.4)}
 input[type=checkbox]{-webkit-appearance:none;appearance:none;width:44px;height:24px;background:var(--bg);border-radius:12px;position:relative;cursor:pointer;border:1px solid var(--bd);transition:all .2s;flex-shrink:0}
 input[type=checkbox]::before{content:'';position:absolute;width:18px;height:18px;background:var(--mu);border-radius:50%;top:2px;left:2px;transition:all .2s}
 input[type=checkbox]:checked{background:var(--cy);border-color:var(--cy)}
@@ -80,9 +89,15 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
 .sw{display:flex;justify-content:space-between;align-items:center;font-size:13px;gap:10px}
 .two{display:grid;grid-template-columns:1fr 1fr;gap:8px}
 .pimg{width:100%;max-height:30vh;object-fit:contain;background:#000;border-radius:8px;border:1px solid var(--bd)}
-.big{text-align:center;font:800 26px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--cy);padding:12px;background:var(--bg);border-radius:10px;word-break:break-all;outline:none;border:1px solid transparent;user-select:text;-webkit-user-select:text}
-.big:focus{border-color:var(--cy)}
+.big{text-align:center;font:800 26px ui-monospace,Menlo,monospace;letter-spacing:.1em;color:var(--cy);padding:12px;background:var(--bg);border-radius:10px;word-break:break-all;outline:none;border:1px solid transparent}
+.big:focus{border-color:var(--cy);background:#0d1524}
 .edit-hint{font-size:10px;color:var(--mu);text-align:center;margin-top:-6px;font-style:italic}
+
+@media(orientation:landscape) and (max-height:560px){
+  .dash{padding:6px 10px;margin:6px 10px}.btn{padding:6px 2px}.btn svg{display:none}
+  .gauge{width:110px;height:64px}#spd{font-size:26px}.plate{height:32px}.plate b{font-size:16px}
+  .stats{padding:0 8px 6px}.stat b{font-size:12px}
+}
 </style>
 </head>
 <body>
@@ -113,6 +128,13 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
   </div>
 </section>
 
+<section class="stats">
+  <div class="stat"><b id="stCount" class="num">0</b><small>Passages</small></div>
+  <div class="stat"><b id="stAvg" class="num">--</b><small>Moyenne</small></div>
+  <div class="stat"><b id="stMax" class="num">--</b><small>Max</small></div>
+  <div class="stat over"><b id="stOver" class="num">0</b><small>Excès</small></div>
+</section>
+
 <section class="ctl">
   <button class="btn main" id="bCap"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M4 8h3l2-2h6l2 2h3a1 1 0 0 1 1 1v9a1 1 0 0 1-1 1H4a1 1 0 0 1-1-1V9a1 1 0 0 1 1-1z"/><circle cx="12" cy="13" r="3.5"/></svg>Lire plaque</button>
   <button class="btn" id="bFlip"><svg viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2" stroke-linecap="round" stroke-linejoin="round"><path d="M3 12a9 9 0 0 1 15-6.7L21 8M21 3v5h-5M21 12a9 9 0 0 1-15 6.7L3 16M3 21v-5h5"/></svg>Caméra</button>
@@ -126,10 +148,10 @@ select{background:var(--bg);color:var(--tx);border:1px solid var(--bd);border-ra
   <div class="ph">Réglages<button class="x" data-close>✕</button></div>
   <div id="fields" style="display:flex;flex-direction:column;gap:12px"></div>
   <div class="sw">Unité<select id="unitSel"><option value="kmh">km/h</option><option value="mph">mph</option></select></div>
-  <div class="sw">Lecture auto plaque<input type="checkbox" id="autoOcr"></div>
-  <div class="sw">Afficher zone plaque<input type="checkbox" id="showZone"></div>
+  <div class="sw">Lecture auto de la plaque<input type="checkbox" id="autoOcr"></div>
+  <div class="sw">Afficher la zone plaque<input type="checkbox" id="showZone"></div>
   <div class="sw">Bip sonore<input type="checkbox" id="soundOn"></div>
-  <div class="two"><button class="btn" id="bCsv">Exporter CSV</button><button class="btn" id="bDef">Défaut</button></div>
+  <div class="two"><button class="btn" id="bCsv">Exporter CSV</button><button class="btn" id="bDef">Valeurs par défaut</button></div>
 </div></div>
 
 <div class="sheet" id="shPl"><div class="panel">
@@ -151,35 +173,23 @@ const PW=320,PH=180,pcv=document.createElement('canvas');pcv.width=PW;pcv.height
 const pc=pcv.getContext('2d',{willReadFrequently:true});
 
 /* ---------- Réglages ---------- */
-const D={
-  dist:1,           // distance entre A et B (m)
-  a:30,             // position de A en % de la largeur
-  b:70,             // position de B en % de la largeur
-  tol:6,            // tolérance d'entrée en % de la largeur
-  sens:22,          // seuil de mouvement (différence pixel)
-  area:30,          // nombre mini de pixels en mouvement pour valider
-  limit:0,
-  px:30,py:55,pw:40,ph:20,
-  auto:true,unit:'kmh',zone:true,sound:true
-};
-
+const D={dist:1,a:28,b:72,top:15,bot:95,sens:22,area:40,entryTol:12,limit:0,px:30,py:55,pw:40,ph:20,auto:true,unit:'kmh',zone:true,sound:true};
 const F=[
  ['Mesure'],
- ['dist','Distance réelle A → B','m',.1,100,.1,'Mesurez au sol entre les 2 lignes'],
- ['a','Ligne A','%',5,95,1],['b','Ligne B','%',5,95,1],
- ['tol','Zone d\'entrée (tolérance)','%',2,15,1,'Déclenche la détection quand l\'objet touche A ou B'],
- ['limit','Limite de vitesse (0=none)','km/h',0,200,5],
+ ['dist','Distance réelle entre A et B','m',.1,100,.1,'Calibrage : distance réelle au sol'],
+ ['a','Position ligne A','%',5,95,1],['b','Position ligne B','%',5,95,1],
+ ['entryTol','Zone d\'entrée','%',3,25,1,'Élargissez si l\'objet n\'est pas détecté à l\'entrée'],
+ ['limit','Limite de vitesse (0 = aucune)','km/h',0,200,5],
  ['Détection'],
- ['sens','Seuil de mouvement','',5,120,1,'Baisser = plus sensible'],
- ['area','Mouvement mini','px',5,600,5,'Baisser si les petits objets ne sont pas détectés'],
+ ['top','Bande de détection : haut','%',0,90,1],['bot','Bande de détection : bas','%',10,100,1],
+ ['sens','Seuil de mouvement','',5,120,1,'Plus bas = plus sensible'],
+ ['area','Taille mini du blob','px',5,800,5,'Diminuez pour suivre de petits objets'],
  ['Zone plaque'],
- ['px','Position X','%',0,95,1],['py','Position Y','%',0,95,1],
- ['pw','Largeur','%',5,100,1],['ph','Hauteur','%',3,100,1]
+ ['px','Position X','%',0,95,1],['py','Position Y','%',0,95,1],['pw','Largeur','%',5,100,1],['ph','Hauteur','%',3,100,1]
 ];
-
 let S={...D};
-try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v8')||'{}'))}catch(e){}
-const save=()=>{try{localStorage.setItem('radar.v8',JSON.stringify(S))}catch(e){}};
+try{Object.assign(S,JSON.parse(localStorage.getItem('radar.v71')||'{}'))}catch(e){}
+const save=()=>{try{localStorage.setItem('radar.v71',JSON.stringify(S))}catch(e){}};
 
 function buildFields(){
   const box=$('fields');box.innerHTML='';
@@ -192,7 +202,7 @@ function buildFields(){
   });
   $('unitSel').value=S.unit;$('autoOcr').checked=S.auto;$('showZone').checked=S.zone;$('soundOn').checked=S.sound;
 }
-$('unitSel').onchange=e=>{S.unit=e.target.value;$('unit').textContent=S.unit==='mph'?'mph':'km/h';save()};
+$('unitSel').onchange=e=>{S.unit=e.target.value;$('unit').textContent=S.unit==='mph'?'mph':'km/h';save();updateStats()};
 $('autoOcr').onchange=e=>{S.auto=e.target.checked;save()};
 $('showZone').onchange=e=>{S.zone=e.target.checked;save()};
 $('soundOn').onchange=e=>{S.sound=e.target.checked;save();if(e.target.checked)ensureAudio()};
@@ -200,7 +210,7 @@ $('bDef').onclick=()=>{S={...D};save();buildFields();$('unit').textContent='km/h
 document.querySelectorAll('[data-close]').forEach(b=>b.onclick=()=>b.closest('.sheet').classList.remove('open'));
 $('bSet').onclick=()=>{$('shSet').classList.add('open');ensureAudio()};
 
-const status=(m,c)=>{const e=$('st');e.textContent=m;e.style.color=c==='ok'?'var(--gn)':c==='err'?'var(--rd)':c==='arm'?'var(--am)':'var(--mu)'};
+const status=(m,c)=>{const e=$('st');e.textContent=m;e.style.color=c==='ok'?'var(--gn)':c==='err'?'var(--rd)':c==='track'?'var(--gn)':'var(--mu)'};
 const conv=k=>S.unit==='mph'?k*0.621371:k;
 const fmt=v=>`${v.toFixed(1)} ${S.unit==='mph'?'mph':'km/h'}`;
 
@@ -225,8 +235,19 @@ document.addEventListener('pointerdown',ensureAudio,{once:true,passive:true});
   }
 })();
 
+/* ---------- Stats ---------- */
+const stats={count:0,sum:0,max:0,over:0};
+try{Object.assign(stats,JSON.parse(localStorage.getItem('radar.stats')||'{}'))}catch(e){}
+function addStat(kmh,over){stats.count++;stats.sum+=kmh;if(kmh>stats.max)stats.max=kmh;if(over)stats.over++;try{localStorage.setItem('radar.stats',JSON.stringify(stats))}catch(e){}updateStats()}
+function updateStats(){
+  $('stCount').textContent=stats.count;
+  $('stAvg').textContent=stats.count?conv(stats.sum/stats.count).toFixed(0):'--';
+  $('stMax').textContent=stats.max?conv(stats.max).toFixed(0):'--';
+  $('stOver').textContent=stats.over;
+}
+
 /* ---------- Caméra ---------- */
-let facing='environment',bg=null,frames=0,fpsT=performance.now();
+let facing='environment',bg=null,frames=0,fpsT=performance.now(),flashT=0,currentFps=30;
 function sync(){
   const v=video.getBoundingClientRect(),s=stage.getBoundingClientRect();
   if(!v.width)return;
@@ -239,252 +260,276 @@ async function startCam(){
     if(video.srcObject)video.srcObject.getTracks().forEach(t=>t.stop());
     video.srcObject=await navigator.mediaDevices.getUserMedia({video:{facingMode:facing,width:{ideal:640},height:{ideal:480},frameRate:{ideal:30}},audio:false});
     await video.play().catch(()=>{});
-    bg=null;reset();
-    status('Prêt — faites passer un objet de A vers B');
+    bg=null;resetTracker();
+    status('Caméra prête — faites entrer un objet en A ou B');
   }catch(e){status('Caméra inaccessible : '+e.message,'err')}
 }
-const sched=()=>video.requestVideoFrameCallback?video.requestVideoFrameCallback(tick):requestAnimationFrame(tick);
+const sched=()=>video.requestVideoFrameCallback?video.requestVideoFrameCallback(tick):requestAnimationFrame(sched);
 function tick(now){try{process(now)}catch(e){console.error(e)}sched()}
 
-/* ================================================================
-   MACHINE À ÉTATS SIMPLE
+/* ============================================================
+   DÉTECTION DE BLOBS
+   ============================================================ */
+const maskBuf=new Uint8Array(PW*PH);
+const visitedBuf=new Uint8Array(PW*PH);
+const queueBuf=new Int32Array(PW*PH);
 
-   IDLE ──[objet touche A]──► ARMED_A ──[objet franchit B]──► FINISH
-        └─[objet touche B]──► ARMED_B ──[objet franchit A]──► FINISH
-
-   Le chrono démarre au franchissement de la ligne de départ
-   (interpolé), et s'arrête au franchissement de la ligne d'arrivée.
-
-   Annulation si :
-   - objet perdu > 2 s
-   - objet recule
-   - timeout > 8 s
-   ================================================================ */
-let state = 'IDLE';       // 'IDLE' | 'ARMED_A' | 'ARMED_B'
-let armTime = 0;          // ms — moment du déclenchement
-let tStart = null;        // ms — franchissement de la ligne de départ
-let lastX = null;         // dernière position connue du centroïde
-let lastT = 0;
-let lastSeenT = 0;        // dernière frame où un mouvement a été vu
-let trail = [];
-let flashTimer = 0;
-
-const A = () => S.a/100;
-const B = () => S.b/100;
-const TOL = () => S.tol/100;
-
-// Remet à zéro uniquement la logique (sans toucher à l'affichage du résultat)
-function resetState(){
-  state='IDLE'; armTime=0; tStart=null;
-  lastX=null; lastT=0; lastSeenT=0;
-  trail=[];
+function detectBlobs(y0,y1){
+  visitedBuf.fill(0);
+  const blobs=[];
+  for(let y=y0;y<y1;y++){
+    for(let x=0;x<PW;x++){
+      const startIdx=y*PW+x;
+      if(!maskBuf[startIdx]||visitedBuf[startIdx])continue;
+      let head=0,tail=0;
+      queueBuf[tail++]=startIdx;
+      visitedBuf[startIdx]=1;
+      let minX=x,maxX=x,minY=y,maxY=y,count=0,sumX=0,sumY=0;
+      while(head<tail){
+        const idx=queueBuf[head++];
+        const py=(idx/PW)|0;
+        const px=idx-py*PW;
+        count++;
+        sumX+=px;sumY+=py;
+        if(px<minX)minX=px;
+        if(px>maxX)maxX=px;
+        if(py<minY)minY=py;
+        if(py>maxY)maxY=py;
+        if(px>0){const n=idx-1;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
+        if(px<PW-1){const n=idx+1;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
+        if(py>y0){const n=idx-PW;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
+        if(py<y1-1){const n=idx+PW;if(maskBuf[n]&&!visitedBuf[n]){visitedBuf[n]=1;queueBuf[tail++]=n}}
+      }
+      if(count>=S.area){
+        const w=(maxX-minX+1)/PW;
+        const h=(maxY-minY+1)/PH;
+        // ✅ Filtre assoupli : w<0.95 au lieu de 0.85
+        if(w<0.95&&h>0.015){
+          blobs.push({
+            cx:((minX+maxX)/2)/PW, cy:((minY+maxY)/2)/PH,
+            x1:minX/PW, x2:(maxX+1)/PW,
+            y1:minY/PH, y2:(maxY+1)/PH,
+            w,h,area:count,
+            sumX:sumX/count/PW, sumY:sumY/count/PH
+          });
+        }
+      }
+    }
+  }
+  return blobs;
 }
-// Remise à zéro complète (logique + affichage)
-function reset(){
-  resetState();
-  $('dash').classList.remove('armed','valid','over');
-  $('dt').textContent='Temps : --';
-  $('dir').textContent='Sens : --';
+
+/* ============================================================
+   TRACKER — suivi de l'objet de A vers B (ou inverse)
+   ============================================================ */
+let tracker=null, lastFinishT=0, trail=[];
+const A=()=>S.a/100;
+const B=()=>S.b/100;
+const TOL=()=>S.entryTol/100;       // ✅ tolérance configurable (défaut 12%)
+const MATCH_BASE=0.25;              // base du rayon de matching
+const MATCH_PER_SEC=0.6;            // ✅ +60% par seconde d'écart
+const LOST_TIMEOUT=2500;            // ✅ 2.5s (au lieu de 1.2s)
+const TRACK_TIMEOUT=12000;          // ✅ 12s (au lieu de 8s)
+
+function resetTracker(){
+  tracker=null; trail=[];
+  $('dash').classList.remove('tracking','valid','over');
 }
 
-/* ---------- Boucle principale ---------- */
+// ✅ Détection d'entrée : bbox OU centre proche de la ligne
+function blobNearLine(b,lineX,tol){
+  const overlap = (b.x1 <= lineX+tol) && (b.x2 >= lineX-tol);
+  const centerNear = Math.abs(b.cx - lineX) <= tol;
+  return overlap || centerNear;
+}
+
+function updateTracker(blobs,t){
+  /* ---------- PHASE 1 : chercher une entrée ---------- */
+  if(!tracker){
+    if(t-lastFinishT<500)return;
+    let bestB=null,bestLine=null,bestDist=Infinity;
+    const tol=TOL();
+    for(const b of blobs){
+      const dA=Math.abs(b.cx-A()), dB=Math.abs(b.cx-B());
+      if(blobNearLine(b,A(),tol)&&dA<bestDist){bestB=b;bestLine='A';bestDist=dA}
+      if(blobNearLine(b,B(),tol)&&dB<bestDist){bestB=b;bestLine='B';bestDist=dB}
+    }
+    if(bestB){
+      tracker={
+        cx:bestB.cx, cy:bestB.cy,
+        x1:bestB.x1, x2:bestB.x2, y1:bestB.y1, y2:bestB.y2,
+        w:bestB.w, h:bestB.h, area:bestB.area,
+        vx:0, vy:0,
+        prevCx:bestB.cx, prevT:t,
+        firstSeen:t, lastSeenT:t, lastT:t,
+        lockTime:t, lockLine:bestLine,
+        missed:0
+      };
+      trail=[{x:bestB.cx,y:bestB.cy,t}];
+      $('dash').classList.add('tracking');
+      status(`🔒 Entrée ${bestLine} détectée — en attente de ${bestLine==='A'?'B':'A'}…`,'track');
+      beep(660,.05,.1);
+    }
+    return;
+  }
+
+  /* ---------- PHASE 2 : suivre le blob ---------- */
+  const dt=Math.max(0.001,(t-tracker.lastT)/1000);
+  const predX=tracker.cx+tracker.vx*dt;
+  const predY=tracker.cy+tracker.vy*dt;
+  // ✅ Rayon de matching ADAPTATIF selon le temps écoulé
+  const matchMax=MATCH_BASE + dt*MATCH_PER_SEC;
+
+  let best=null, bestD=Infinity;
+  for(const b of blobs){
+    const d=Math.hypot(b.cx-predX,b.cy-predY);
+    if(d<bestD){bestD=d;best=b}
+  }
+
+  if(best && bestD<matchMax){
+    // ✅ Mise à jour réussie : on note lastSeenT
+    const nvx=(best.cx-tracker.cx)/dt;
+    const nvy=(best.cy-tracker.cy)/dt;
+    tracker.vx=tracker.vx*0.4+nvx*0.6;
+    tracker.vy=tracker.vy*0.4+nvy*0.6;
+    tracker.prevCx=tracker.cx; tracker.prevT=tracker.lastT;
+    tracker.cx=best.cx; tracker.cy=best.cy;
+    tracker.x1=best.x1; tracker.x2=best.x2;
+    tracker.y1=best.y1; tracker.y2=best.y2;
+    tracker.w=best.w; tracker.h=best.h; tracker.area=best.area;
+    tracker.lastT=t; tracker.lastSeenT=t;
+    tracker.missed=0;
+  }else{
+    // Frame manquée : extrapolation
+    tracker.missed++;
+    tracker.prevCx=tracker.cx; tracker.prevT=tracker.lastT;
+    tracker.cx=predX; tracker.cy=predY;
+    tracker.lastT=t;
+    // ✅ BUG FIX : utiliser lastSeenT et non firstSeen
+    if(tracker.missed>6 || t-tracker.lastSeenT>LOST_TIMEOUT){
+      resetTracker();
+      status('Suivi perdu — mesure annulée','err');
+      return;
+    }
+  }
+
+  /* ---------- PHASE 3 : détection de la sortie ---------- */
+  trail.push({x:tracker.cx,y:tracker.cy,t});
+  while(trail.length && t-trail[0].t>2000) trail.shift();
+
+  const exitLine = tracker.lockLine==='A' ? B() : A();
+  const px=tracker.prevCx, cx=tracker.cx;
+
+  if((px-exitLine)*(cx-exitLine)<0){
+    const dtFrame=tracker.lastT-tracker.prevT;
+    const frac=Math.abs(cx-px)>1e-6 ? (exitLine-px)/(cx-px) : 0.5;
+    const tExit=tracker.prevT+frac*dtFrame;
+    const dtTotal=(tExit-tracker.lockTime)/1000;
+    if(dtTotal>0.03 && dtTotal<TRACK_TIMEOUT/1000){
+      const kmh=S.dist/dtTotal*3.6;
+      if(kmh>0 && kmh<400){
+        finish(kmh,dtTotal,tracker.lockLine==='A'?1:-1);
+      }
+    }
+    resetTracker();
+    lastFinishT=t;
+    return;
+  }
+
+  if(t-tracker.firstSeen>TRACK_TIMEOUT){
+    resetTracker();
+    status('Temps écoulé','err');
+  }
+}
+
+/* ---------- Process principal ---------- */
 function process(t){
   if(video.readyState<2||!video.videoWidth)return;
   sync();
-  if(++frames>=30){$('fps').textContent=Math.round(frames*1000/(t-fpsT))+' fps';frames=0;fpsT=t}
+  if(++frames>=20){currentFps=Math.round(frames*1000/(t-fpsT));$('fps').textContent=currentFps+' fps';frames=0;fpsT=t}
 
   pc.drawImage(video,0,0,PW,PH);
   const d=pc.getImageData(0,0,PW,PH).data,n=PW*PH;
 
-  // Initialisation du background
   if(!bg||bg.length!==n){
     bg=new Float32Array(n);
     for(let i=0;i<n;i++)bg[i]=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
-    draw(t,null);return;
+    draw(t);return;
   }
 
-  // --- Détection du mouvement ---
-  let c=0, sumX=0, sumY=0;
-  let minX=PW, maxX=0, minY=PH, maxY=0;
+  const y0=Math.floor(S.top/100*PH);
+  const y1=Math.max(y0+1,Math.ceil(S.bot/100*PH));
 
-  for(let y=0;y<PH;y++){
+  maskBuf.fill(0);
+  let totalMoving=0;
+  for(let y=y0;y<y1;y++){
     const rowOff=y*PW;
     for(let x=0;x<PW;x++){
       const i=rowOff+x;
       const g=(d[i*4]*77+d[i*4+1]*150+d[i*4+2]*29)>>8;
       const moving=Math.abs(g-bg[i])>S.sens;
-      bg[i]+=(g-bg[i])*(moving?.01:.05);
-      if(moving){
-        c++; sumX+=x; sumY+=y;
-        if(x<minX)minX=x; if(x>maxX)maxX=x;
-        if(y<minY)minY=y; if(y>maxY)maxY=y;
-      }
+      bg[i]+=(g-bg[i])*(moving?.008:.05);
+      if(moving){maskBuf[i]=1;totalMoving++}
     }
   }
 
-  // Changement de luminosité global
-  if(c>.8*n){bg=null;reset();draw(t,null);return}
-
-  // --- Calcul du centroïde ---
-  const hasMotion = c >= S.area;
-  const cx = hasMotion ? sumX/c/PW : null;
-  const cy = hasMotion ? sumY/c/PH : null;
-
-  if(hasMotion){
-    lastSeenT = t;
-    trail.push({x:cx,y:cy,t});
-    while(trail.length && t-trail[0].t > 2500) trail.shift();
+  if(totalMoving>0.85*PW*(y1-y0)){
+    bg=null;resetTracker();draw(t);return;
   }
 
-  // --- Logique de la machine à états ---
-  updateState(t, cx, cy, hasMotion);
+  const blobs=detectBlobs(y0,y1);
+  updateTracker(blobs,t);
 
-  draw(t, hasMotion ? {cx,cy,minX:minX/PW,maxX:maxX/PW,minY:minY/PH,maxY:maxY/PH,c} : null);
-}
-
-function updateState(t, cx, cy, hasMotion){
-  const a = A(), b = B(), tol = TOL();
-
-  // === IDLE : on attend qu'un objet touche A ou B ===
-  if(state==='IDLE'){
-    if(!hasMotion) return;
-    if(t < flashTimer) return; // cooldown après un finish
-
-    // Touche A ?
-    if(Math.abs(cx - a) <= tol){
-      state='ARMED_A';
-      armTime=t;
-      tStart = (cx >= a) ? t : null; // déjà au-delà de A → chrono immédiat
-      lastX=cx; lastT=t; lastSeenT=t;
-      trail=[{x:cx,y:cy,t}];
-      $('dash').classList.remove('valid','over');
-      $('dash').classList.add('armed');
-      status('⏺ Entrée A détectée — attente de B…','arm');
-      beep(660,.05,.1);
-      return;
+  if(!tracker && t-lastFinishT>800){
+    if(blobs.length){
+      status(`${blobs.length} objet(s) — visez A ou B`);
+    }else{
+      status('Prêt — aucun mouvement');
     }
-
-    // Touche B ?
-    if(Math.abs(cx - b) <= tol){
-      state='ARMED_B';
-      armTime=t;
-      tStart = (cx <= b) ? t : null;
-      lastX=cx; lastT=t; lastSeenT=t;
-      trail=[{x:cx,y:cy,t}];
-      $('dash').classList.remove('valid','over');
-      $('dash').classList.add('armed');
-      status('⏺ Entrée B détectée — attente de A…','arm');
-      beep(660,.05,.1);
-      return;
-    }
-    return;
   }
 
-  // === ARMED : on attend le franchissement de la ligne opposée ===
-  if(state==='ARMED_A' || state==='ARMED_B'){
-    // Perte de vue prolongée → annulation
-    if(t - lastSeenT > 2000){
-      reset();
-      status('Objet perdu — mesure annulée','err');
-      return;
-    }
-
-    // Timeout global
-    if(t - armTime > 8000){
-      reset();
-      status('Temps écoulé — mesure annulée','err');
-      return;
-    }
-
-    if(!hasMotion) return;
-
-    // Vérif direction : ne pas reculer
-    if(lastX !== null){
-      const dx = cx - lastX;
-      const expectedSign = state==='ARMED_A' ? +1 : -1;
-      if(dx * expectedSign < -0.02 && (t - armTime) > 300){
-        reset();
-        status('Demi-tour — mesure annulée','err');
-        return;
-      }
-    }
-
-    const startLine  = state==='ARMED_A' ? a : b;
-    const targetLine = state==='ARMED_A' ? b : a;
-
-    // Franchissement de la ligne de départ → début du chrono
-    if(tStart===null && lastX!==null && (lastX-startLine)*(cx-startLine)<=0){
-      const f = cx!==lastX ? (startLine-lastX)/(cx-lastX) : .5;
-      tStart = lastT + f*(t-lastT);
-    }
-
-    // Franchissement de la ligne d'arrivée
-    if(tStart!==null && lastX!==null && (lastX-targetLine)*(cx-targetLine)<=0){
-      const f = cx!==lastX ? (targetLine-lastX)/(cx-lastX) : .5;
-      const tCross = lastT + f*(t-lastT);
-      const dt = (tCross - tStart)/1000;
-      if(dt>0.03 && dt<8){
-        finish(S.dist/dt*3.6, dt, state==='ARMED_A'?+1:-1, t);
-      }
-      return;
-    }
-
-    lastX = cx; lastT = t;
-  }
+  draw(t,blobs);
 }
 
 /* ---------- Finish ---------- */
-function finish(kmh, dt, dir, t){
-  const v = conv(kmh);
-  $('spd').textContent = v.toFixed(1);
-
-  // Échelle adaptative de la jauge
+function finish(kmh,dt,dir){
+  const v=conv(kmh);
+  $('spd').textContent=v.toFixed(1);
   let scale;
-  if(S.limit>0){
-    scale = Math.max(S.limit*1.2, kmh*1.15, 20);
-  }else{
-    scale = Math.max(20, Math.ceil(kmh/10)*10);
-    if(kmh>0 && kmh/scale<0.6) scale = kmh/0.85;
-  }
-  $('arc').setAttribute('stroke-dasharray', `${Math.min(1,kmh/scale)*169.6} 170`);
-
-  $('dt').textContent = `Temps : ${dt.toFixed(2)} s`;
-  $('dir').textContent = dir>0 ? 'Sens : A → B' : 'Sens : B → A';
-
-  const over = S.limit>0 && kmh>S.limit;
-  $('dash').classList.remove('armed');
-  $('dash').classList.toggle('over', over);
+  if(S.limit>0){scale=Math.max(S.limit*1.15,kmh*1.15,20)}
+  else{scale=Math.max(20,Math.ceil(kmh/10)*10);if(kmh>0&&kmh/scale<0.6)scale=kmh/0.85}
+  const ratio=Math.min(1,kmh/scale);
+  $('arc').setAttribute('stroke-dasharray',`${ratio*169.6} 170`);
+  $('dt').textContent=`Temps : ${dt.toFixed(2)} s`;
+  $('dir').textContent=dir>0?'Sens : →':'Sens : ←';
+  const over=S.limit>0&&kmh>S.limit;
+  $('dash').classList.toggle('over',over);
   $('dash').classList.add('valid');
-  flashTimer = t + 500;
-  setTimeout(()=>{
-    $('dash').classList.remove('valid');
-    if(!over) $('dash').classList.remove('over');
-  }, 1500);
-
-  status(`${fmt(v)} · ${dir>0?'A→B':'B→A'}`, over?'err':'ok');
-  if(over){beep(440,.1,.2);setTimeout(()=>beep(440,.1,.2),150)}
-  else beep(880,.08,.15);
+  $('dash').classList.remove('tracking');
+  flashT=performance.now()+1200;
+  status(`${fmt(v)} · échelle 0–${Math.round(scale)} km/h`,over?'err':'ok');
+  if(over){beep(440,.1,.2);setTimeout(()=>beep(440,.1,.2),150)}else beep(880,.08,.15);
   if(navigator.vibrate)navigator.vibrate(over?[120,60,120]:40);
-
-  // Capture + OCR auto
-  const e = snap(kmh, over);
-  addHist(e);
-  if(S.auto) runOcr(e);
-
-  resetState(); // on garde l'affichage du résultat
+  addStat(kmh,over);
+  const e=snap(kmh,over);addHist(e);
+  if(S.auto)runOcr(e);
 }
 
 /* ---------- Overlay ---------- */
-function draw(t, motion){
+function draw(t,blobs){
   const W=ov.width,H=ov.height;oc.clearRect(0,0,W,H);
-  const a=S.a/100, b=S.b/100, tol=S.tol/100;
+  const ax=S.a/100*W,bx=S.b/100*W,yt=S.top/100*H,yb=S.bot/100*H;
+  const tol=TOL();
 
-  // Bandes d'entrée teintées
-  oc.fillStyle='rgba(46,230,214,0.07)';
-  oc.fillRect((a-tol)*W, 0, tol*2*W, H);
-  oc.fillRect((b-tol)*W, 0, tol*2*W, H);
+  if(flashT && t>flashT){ $('dash').classList.remove('valid'); flashT=0; }
 
-  // Coins HUD
+  oc.fillStyle='rgba(0,0,0,.4)';oc.fillRect(0,0,W,yt);oc.fillRect(0,yb,W,H-yb);
+
+  // ✅ Zone d'entrée VISIBLE (large, cyan)
+  oc.fillStyle='rgba(46,230,214,0.10)';
+  oc.fillRect((A()-tol)*W,yt,tol*2*W,yb-yt);
+  oc.fillRect((B()-tol)*W,yt,tol*2*W,yb-yt);
+
   const bl=22,bo=10;oc.strokeStyle='rgba(46,230,214,.65)';oc.lineWidth=2;oc.lineCap='round';
   oc.beginPath();
   oc.moveTo(bo+bl,bo);oc.lineTo(bo,bo);oc.lineTo(bo,bo+bl);
@@ -493,79 +538,79 @@ function draw(t, motion){
   oc.moveTo(W-bo,H-bo-bl);oc.lineTo(W-bo,H-bo);oc.lineTo(W-bo-bl,H-bo);
   oc.stroke();
 
-  // Couleurs des lignes selon l'état
-  let colA='rgba(255,176,32,.85)', colB='rgba(255,176,32,.85)', glowA=0, glowB=0;
-  if(state==='ARMED_A'){colA='#34d399';glowA=14;colB='#ffb020';glowB=6}
-  else if(state==='ARMED_B'){colB='#34d399';glowB=14;colA='#ffb020';glowA=6}
-
-  // Ligne A
+  const fs=Math.max(12,W/40);
   oc.lineWidth=Math.max(2,W/300);oc.setLineDash([10,7]);
-  oc.strokeStyle=colA;oc.shadowBlur=glowA;oc.shadowColor='rgba(52,211,153,.9)';
-  oc.beginPath();oc.moveTo(a*W,0);oc.lineTo(a*W,H);oc.stroke();
+  const activeA=tracker&&tracker.lockLine==='A';
+  const activeB=tracker&&tracker.lockLine==='B';
 
-  // Ligne B
-  oc.strokeStyle=colB;oc.shadowBlur=glowB;oc.shadowColor='rgba(52,211,153,.9)';
-  oc.beginPath();oc.moveTo(b*W,0);oc.lineTo(b*W,H);oc.stroke();
-  oc.setLineDash([]);oc.shadowBlur=0;
+  oc.strokeStyle=activeA?'#34d399':'rgba(255,176,32,.85)';
+  oc.shadowBlur=activeA?14:5;oc.shadowColor=activeA?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
+  oc.beginPath();oc.moveTo(ax,yt);oc.lineTo(ax,yb);oc.stroke();oc.shadowBlur=0;
 
-  // Étiquettes
-  const fs=Math.max(14,W/35);
+  oc.strokeStyle=activeB?'#34d399':'rgba(255,176,32,.85)';
+  oc.shadowBlur=activeB?14:5;oc.shadowColor=activeB?'rgba(52,211,153,.9)':'rgba(255,176,32,.4)';
+  oc.beginPath();oc.moveTo(bx,yt);oc.lineTo(bx,yb);oc.stroke();oc.setLineDash([]);oc.shadowBlur=0;
+
   oc.font=`700 ${fs}px ui-monospace,monospace`;
-  oc.fillStyle=colA;oc.fillText('A',a*W+8,fs+8);
-  oc.fillStyle=colB;oc.fillText('B',b*W+8,fs+8);
+  oc.fillStyle=activeA?'#34d399':'#ffb020';oc.fillText('A',ax+6,yt+fs+4);
+  oc.fillStyle=activeB?'#34d399':'#ffb020';oc.fillText('B',bx+6,yt+fs+4);
 
-  // Zone plaque
-  if(S.zone){
-    const zx=S.px/100*W,zy=S.py/100*H,zw=S.pw/100*W,zh=S.ph/100*H;
-    oc.strokeStyle='rgba(52,211,153,.85)';oc.lineWidth=2;oc.setLineDash([5,4]);
-    oc.strokeRect(zx,zy,zw,zh);oc.setLineDash([]);
-    oc.fillStyle='rgba(52,211,153,.12)';oc.fillRect(zx,zy,zw,zh);
-    oc.fillStyle='#34d399';oc.font=`600 ${fs*.7}px system-ui`;
-    oc.fillText('PLAQUE',zx+4,zy-4);
-  }
-
-  // Barre de progression entre A et B
-  const yProg = H - 12;
-  oc.fillStyle='rgba(255,255,255,.08)';
-  oc.fillRect(a*W, yProg, (b-a)*W, 4);
-  if(state==='ARMED_A' && lastX!==null){
-    const p = Math.max(0, Math.min(1, (lastX-a)/(b-a)));
-    oc.fillStyle='#34d399';
-    oc.fillRect(a*W, yProg, (b-a)*W*p, 4);
-  }else if(state==='ARMED_B' && lastX!==null){
-    const p = Math.max(0, Math.min(1, (b-lastX)/(b-a)));
-    oc.fillStyle='#34d399';
-    oc.fillRect(b*W-(b-a)*W*p, yProg, (b-a)*W*p, 4);
-  }
-
-  // Trajectoire
-  if(trail.length>1){
-    for(let i=1;i<trail.length;i++){
-      const p1=trail[i-1],p2=trail[i],alpha=i/trail.length;
-      oc.strokeStyle=`rgba(52,211,153,${alpha*0.7})`;
-      oc.lineWidth=1+alpha*3;
-      oc.beginPath();oc.moveTo(p1.x*W,p1.y*H);oc.lineTo(p2.x*W,p2.y*H);oc.stroke();
+  if(blobs&&blobs.length){
+    for(const b of blobs){
+      if(tracker&&Math.abs(b.cx-tracker.cx)<0.001&&Math.abs(b.cy-tracker.cy)<0.001)continue;
+      oc.strokeStyle='rgba(122,138,166,.35)';oc.lineWidth=1;
+      oc.strokeRect(b.x1*W,b.y1*H,b.w*W,b.h*H);
     }
   }
 
-  // Centroïde courant
-  if(motion){
-    const color = state!=='IDLE' ? '#34d399' : '#ff4d5e';
-    const r = state!=='IDLE' ? 12 : 10;
-    oc.beginPath();oc.arc(motion.cx*W,motion.cy*H,r,0,7);
-    oc.fillStyle=color+'44';oc.fill();
-    oc.beginPath();oc.arc(motion.cx*W,motion.cy*H,r*0.5,0,7);
-    oc.fillStyle=color;oc.fill();
-    oc.strokeStyle='#fff';oc.lineWidth=2;oc.stroke();
-
-    // Réticule
-    oc.strokeStyle=color;oc.lineWidth=1.5;
+  if(tracker){
+    const tx=tracker.cx*W, ty=tracker.cy*H;
+    const bx1=tracker.x1*W, by1=tracker.y1*H, bw=tracker.w*W, bh=tracker.h*H;
+    oc.strokeStyle='#34d399';oc.lineWidth=2.5;
+    oc.shadowBlur=10;oc.shadowColor='rgba(52,211,153,.7)';
+    oc.strokeRect(bx1,by1,bw,bh);oc.shadowBlur=0;
+    const corner=Math.min(bw,bh)*0.3;
+    oc.lineWidth=3.5;oc.strokeStyle='#34d399';
     oc.beginPath();
-    oc.moveTo(motion.cx*W-r*1.5,motion.cy*H);oc.lineTo(motion.cx*W-r*0.7,motion.cy*H);
-    oc.moveTo(motion.cx*W+r*0.7,motion.cy*H);oc.lineTo(motion.cx*W+r*1.5,motion.cy*H);
-    oc.moveTo(motion.cx*W,motion.cy*H-r*1.5);oc.lineTo(motion.cx*W,motion.cy*H-r*0.7);
-    oc.moveTo(motion.cx*W,motion.cy*H+r*0.7);oc.lineTo(motion.cx*W,motion.cy*H+r*1.5);
+    oc.moveTo(bx1,by1+corner);oc.lineTo(bx1,by1);oc.lineTo(bx1+corner,by1);
+    oc.moveTo(bx1+bw-corner,by1);oc.lineTo(bx1+bw,by1);oc.lineTo(bx1+bw,by1+corner);
+    oc.moveTo(bx1,by1+bh-corner);oc.lineTo(bx1,by1+bh);oc.lineTo(bx1+corner,by1+bh);
+    oc.moveTo(bx1+bw-corner,by1+bh);oc.lineTo(bx1+bw,by1+bh);oc.lineTo(bx1+bw,by1+bh-corner);
     oc.stroke();
+    oc.beginPath();oc.arc(tx,ty,10,0,7);oc.fillStyle='rgba(52,211,153,.25)';oc.fill();
+    oc.beginPath();oc.arc(tx,ty,5,0,7);oc.fillStyle='#34d399';oc.fill();
+    oc.strokeStyle='#fff';oc.lineWidth=1.5;oc.stroke();
+    oc.strokeStyle='#34d399';oc.lineWidth=2;
+    oc.beginPath();
+    oc.moveTo(tx-14,ty);oc.lineTo(tx-8,ty);
+    oc.moveTo(tx+8,ty);oc.lineTo(tx+14,ty);
+    oc.moveTo(tx,ty-14);oc.lineTo(tx,ty-8);
+    oc.moveTo(tx,ty+8);oc.lineTo(tx,ty+14);
+    oc.stroke();
+    if(Math.abs(tracker.vx)>0.01){
+      const inst=Math.abs(tracker.vx)*S.dist*3.6;
+      oc.font=`600 ${fs*.7}px ui-monospace,monospace`;
+      oc.fillStyle='#34d399';
+      oc.fillText(`≈ ${inst.toFixed(1)} km/h`,tx+18,ty-12);
+    }
+  }
+
+  if(S.zone){
+    const zx=S.px/100*W,zy=S.py/100*H,zw=S.pw/100*W,zh=S.ph/100*H;
+    oc.strokeStyle='rgba(52,211,153,.9)';oc.lineWidth=2;oc.setLineDash([5,4]);
+    oc.strokeRect(zx,zy,zw,zh);oc.setLineDash([]);
+    oc.fillStyle='rgba(52,211,153,.15)';oc.fillRect(zx,zy,zw,zh);
+    oc.fillStyle='#34d399';oc.font=`600 ${fs*.75}px system-ui`;
+    oc.fillText('PLAQUE',zx+4,zy-4);
+  }
+
+  if(trail.length>1){
+    for(let i=1;i<trail.length;i++){
+      const a=trail[i-1],b=trail[i],alpha=i/trail.length;
+      oc.strokeStyle=`rgba(52,211,153,${alpha*0.8})`;
+      oc.lineWidth=1+alpha*3;
+      oc.beginPath();oc.moveTo(a.x*W,a.y*H);oc.lineTo(b.x*W,b.y*H);oc.stroke();
+    }
   }
 }
 
@@ -581,7 +626,7 @@ function addHist(e){hist.unshift(e);if(hist.length>40)hist.pop();renderHist()}
 function renderHist(){
   const h=$('hist');
   if(!hist.length){h.innerHTML='<div class="empty">Aucun passage enregistré</div>';return}
-  h.innerHTML=hist.map(e=>`<div class="card${e.over?' ov':''}" data-id="${e.id}"><img src="${e.img}"><div><b class="num">${e.kmh==null?'--':conv(e.kmh).toFixed(0)+(S.unit==='mph'?' mph':' km/h')}</b><span class="num">${e.plate||'plaque ?'}</span></div></div>`).join('');
+  h.innerHTML=hist.map(e=>`<div class="card${e.over?' ov':''}" data-id="${e.id}"><img src="${e.img}" alt=""><div><b class="num">${e.kmh==null?'--':conv(e.kmh).toFixed(0)+(S.unit==='mph'?' mph':' km/h')}</b><span class="num">${e.plate||'plaque ?'}</span></div></div>`).join('');
 }
 $('hist').onclick=ev=>{const c=ev.target.closest('.card');if(c)openPlate(hist.find(e=>String(e.id)===c.dataset.id))};
 $('bCap').onclick=()=>{ensureAudio();if(!video.videoWidth)return;const e=snap(null,false);addHist(e);openPlate(e);runOcr(e)};
@@ -634,7 +679,6 @@ async function getWorker(){
   try{return await wLoad}catch(e){wLoad=null;throw e}
 }
 const loadImg=u=>new Promise((r,j)=>{const i=new Image();i.onload=()=>r(i);i.onerror=j;i.src=u});
-
 async function runOcr(e){
   cur=e;e.busy=true;if($('shPl').classList.contains('open'))showPlate(e);
   try{
@@ -642,21 +686,18 @@ async function runOcr(e){
     cv.width=img.naturalWidth;cv.height=img.naturalHeight;cv.getContext('2d').drawImage(img,0,0);
     const w=await getWorker();
     let best={plate:'',score:-1,conf:0},pp=null;
-
     await w.setParameters({tessedit_pageseg_mode:'7'});
     pp=prep(cv,0);e.crop=pp.toDataURL('image/png');
     let {data}=await w.recognize(pp);let r=parsePlate(data.text);r.conf=data.confidence||0;
     if(r.score>best.score)best=r;
-
     if(best.score<2){
       pp=prep(cv,1);
       ({data}=await w.recognize(pp));r=parsePlate(data.text);r.conf=data.confidence||0;
       if(r.score>best.score)best=r;
     }
-
     e.plate=best.plate;e.conf=best.conf;e.ok=best.score===2;e.err=null;
     if(best.plate.length>=3)$('plate').textContent=best.plate;
-    status(e.ok?`Plaque : ${best.plate}`:'Plaque incertaine — ajustez la zone verte',e.ok?'ok':'err');
+    status(e.ok?`Plaque lue : ${best.plate}`:'Plaque incertaine — ajustez la zone verte',e.ok?'ok':'err');
   }catch(err){e.err=err.message;status('OCR : '+err.message,'err')}
   e.busy=false;renderHist();if(cur===e&&$('shPl').classList.contains('open'))showPlate(e);
 }
@@ -666,40 +707,30 @@ function showPlate(e){
   $('plFull').src=e.img;$('bDl').href=e.img;
   if(e.crop)$('plCrop').src=e.crop;
   $('plTxt').textContent=e.busy?'Analyse…':e.err?'Erreur':(e.plate||'—');
-  $('plMeta').textContent=e.err||(e.busy?'':`Confiance : ${Math.round(e.conf)} % · ${e.ok?'SIV valide':'incertain'}`);
+  $('plMeta').textContent=e.err||(e.busy?'':`Confiance : ${Math.round(e.conf)} % · ${e.ok?'format valide':'incertain'}`);
 }
 $('bRe').onclick=()=>cur&&runOcr(cur);
 $('plTxt').addEventListener('blur',()=>{
   if(!cur||cur.busy)return;
   const v=$('plTxt').textContent.trim().toUpperCase().replace(/[^A-Z0-9-]/g,'');
-  if(v&&v!==cur.plate){cur.plate=v;$('plate').textContent=v;renderHist()}
+  if(v&&v!==cur.plate){cur.plate=v;$('plate').textContent=v;renderHist();status(`Plaque corrigée : ${v}`,'ok')}
 });
-
-/* ---------- Export CSV ---------- */
-$('bCsv').onclick=()=>{
-  if(!hist.length){status('Rien à exporter');return}
-  const rows=['heure;vitesse_kmh;depassement;plaque'];
-  hist.forEach(e=>rows.push([e.time.toISOString(),e.kmh==null?'':e.kmh.toFixed(1),e.over?'oui':'non',e.plate||''].join(';')));
-  const a=document.createElement('a');
-  a.href=URL.createObjectURL(new Blob([rows.join('\n')],{type:'text/csv'}));
-  a.download='radar.csv';a.click();
-  setTimeout(()=>URL.revokeObjectURL(a.href),1000);
-};
 
 /* ---------- Actions ---------- */
 $('bFlip').onclick=()=>{facing=facing==='environment'?'user':'environment';startCam()};
 $('bReset').onclick=()=>{
-  bg=null;reset();hist.length=0;renderHist();
+  bg=null;resetTracker();hist.length=0;renderHist();
   $('spd').textContent='--';$('plate').textContent='-- --';
-  $('arc').setAttribute('stroke-dasharray','0 170');
+  $('dt').textContent='Temps : --';$('dir').textContent='Sens : --';
+  $('arc').setAttribute('stroke-dasharray','0 170');flashT=0;
   status('Réinitialisé');
 };
 
 addEventListener('resize',sync);
 addEventListener('orientationchange',()=>setTimeout(sync,400));
-buildFields();$('unit').textContent=S.unit==='mph'?'mph':'km/h';
+buildFields();updateStats();$('unit').textContent=S.unit==='mph'?'mph':'km/h';
 startCam().then(sched);
 })();
 </script>
 </body>
-</html>
+  </html>
